@@ -1,0 +1,21 @@
+{
+  "name": "@govjobpulse/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "echo 'worker dev server not scaffolded yet — see src/index.ts TODO'",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint configured yet'",
+    "test": "echo 'no tests yet'",
+    "clean": "rm -rf dist .next .turbo"
+  },
+  "dependencies": {
+    "@govjobpulse/types": "workspace:*",
+    "@govjobpulse/shared": "workspace:*",
+    "@govjobpulse/config": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
