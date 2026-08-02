@@ -60,32 +60,59 @@ repo. Read this before doing anything else. Keep it current after every phase.
   in Phase 2+, prisma generate in Phase 2) — update `turbo.json` outputs
   and each package's build script together at that point.
 
-## Open items flagged during brief review (not yet decided — decide before the phase that needs them)
+## Open items flagged during brief review
 
-- **Scraper legal/ToS compliance (before Phase 3):** check robots.txt and
+- ✅ **RBAC matrix — resolved in Phase 2.** `USER`: bookmarks, own profile.
+  `ADMIN`: moderate jobs (draft→reviewed→published), edit job content, view
+  scraper logs. `SUPER_ADMIN`: adds user/role management, notification
+  provider credentials, system config. `GUEST` = unauthenticated, no DB row.
+  Enforcement (middleware) is Phase 14 — the schema just has the `UserRole`
+  enum for now.
+- ✅ **Job archival policy — resolved in Phase 2.** Expired jobs
+  (`applicationEnd` passed) stay `PUBLISHED`, not deleted/delisted. No
+  `EXPIRED`/`ARCHIVED` status was added to the enum; "applications closed"
+  is derived at query time from `applicationEnd < now()`. This preserves
+  Section 6's SEO long-tail requirement — deleting/delisting pages would
+  actively work against it.
+- ⬜ **Scraper legal/ToS compliance (before Phase 3):** check robots.txt and
   ToS for each official source before writing extraction logic; log/flag
-  ambiguous cases rather than scraping first and asking later.
-- **PDF parsing reality (before Phase 3's PDF workstream):** many gov
+  ambiguous cases rather than scraping first and asking later. Schema
+  support for this landed in Phase 2 (`Source.robotsTxtCheckedAt/Allowed/Notes`);
+  the actual checking logic is still Phase 3's job.
+- ⬜ **PDF parsing reality (before Phase 3's PDF workstream):** many gov
   notification PDFs are scanned images / multi-column — plain text
   extraction (e.g. `pdf-parse`) won't be sufficient for all sources; OCR
   fallback likely needed. Don't assume text-layer extraction is enough.
-- **RBAC matrix (before Phase 2's schema, or Phase 14 latest):** roles are
-  named (Guest, Registered User, Admin, Super Admin) but permissions per
-  role aren't specified yet — who can move draft→reviewed→published, edit
-  source config, view scraper logs.
-- **Job archival policy (before Phase 2's schema is locked):** what happens
-  to a Job after `application_end` passes — archived vs. delisted vs. kept
-  live with an "applications closed" state (affects SEO long-tail traffic
-  and the `status` enum design).
-- **Review-queue bottleneck fallback (before Phase 4):** 20+ sources on a
+- ⬜ **Review-queue bottleneck fallback (before Phase 4):** 20+ sources on a
   30-min cron could outpace a human reviewer. Confidence-scored auto-review
   is mentioned as a maybe-later in the brief — decide the interim fallback
-  (e.g. auto-flag high-confidence diffs differently from brand-new listings)
   before this becomes a real backlog.
-- **Content reproduction / attribution pattern (before Phase 3):** decide
+- ⬜ **Content reproduction / attribution pattern (before Phase 3):** decide
   whether job descriptions get rewritten/summarized vs. reproduced from
-  source PDFs, and make linking back to `official_notification_url`
-  mandatory in the UI (field already exists in the Section 3 schema).
+  source PDFs, and make linking back to `officialNotificationUrl`
+  mandatory in the UI (field exists on `Job` since Phase 2).
+
+## Known environment limitation (this sandbox only)
+
+Prisma's native query-engine binary downloads from `binaries.prisma.sh`,
+which is **not** on this sandbox's allowed egress domain list (confirmed via
+`x-deny-reason: host_not_allowed`). This means `prisma generate` /
+`validate` / `migrate` / `format` cannot run inside this particular sandboxed
+conversation — it's a network-layer restriction here, not a schema problem,
+and will work normally in Claude Code, CI, or any environment with standard
+network access. What I verified instead in Phase 2, given that constraint:
+- A real local Postgres 16 instance was installed and running (via apt —
+  `archive.ubuntu.com` is allowed) to prove the DB side works.
+- Manual structural review of `schema.prisma`: brace balance, and every
+  `@relation(fields: [...])` reference cross-checked against a matching
+  scalar field in the same model.
+- `packages/database/src/index.ts` (the PrismaClient singleton wrapper)
+  typechecks cleanly against `@prisma/client`'s base stub types.
+- **Not verified here:** an actual `prisma migrate dev` applying the schema
+  to Postgres and generating real model types. **Do this first** in any
+  environment with normal network access before trusting the schema
+  further — run `pnpm --filter @govjobpulse/database db:migrate` then
+  `db:seed`, and treat that as the real completion check for Phase 2.
 
 ## Environment variables (running log)
 
@@ -117,7 +144,7 @@ scaffolding only). First real check-in: Phase 6 or Phase 7._
 | Phase | Status | Notes |
 |---|---|---|
 | 1. Repo scaffolding + monorepo setup | ✅ Complete | pnpm workspaces + Turborepo; 4 apps + 5 packages scaffolded as placeholder TS packages; build/typecheck/lint/test all pass (12/12 tasks) across the workspace. No app framework code yet (Next.js/Express/Prisma all deferred to the phases that build against a real schema). |
-| 2. Database schema | ⬜ Not started | |
+| 2. Database schema | ⚠️ Complete, unverified by CLI | Prisma schema for Section 3's content model + resolved RBAC/archival open items + seed script for real categories/states. `pnpm run typecheck` passes 12/12 (doesn't need the engine). `pnpm run build` **fails** at `@govjobpulse/database` in this sandbox only — `prisma generate` needs `binaries.prisma.sh`, which this sandbox's egress proxy blocks (`host_not_allowed`). Verified everything short of that: real local Postgres 16 running, schema manually cross-checked for relation/brace consistency. **Before trusting this schema further, run `pnpm --filter @govjobpulse/database db:migrate` then `db:seed` in an environment with normal network access** — that's the real completion check this phase couldn't finish here. |
 | 3. First scraper end-to-end + dup detection | ⬜ Not started | |
 | 4. Scraper generalization + scheduler + admin staleness view | ⬜ Not started | |
 | 5. Event bus | ⬜ Not started | |

@@ -1,0 +1,265 @@
+// GovJobPulse database schema
+// See CLAUDE.md "Architecture decisions" for the reasoning behind
+// modeling choices not explicitly spelled out in the build brief
+// (Category/State as real tables, Qualification as a scalar array,
+// archival-by-status-not-deletion, RBAC roles).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+// draft -> reviewed -> published per Section 4's moderation gate.
+// Deliberately no "expired"/"archived" state: expired jobs stay PUBLISHED
+// (frontend derives "applications closed" from applicationEnd at query
+// time) so their pages keep earning SEO long-tail traffic per Section 6.
+enum JobStatus {
+  DRAFT
+  REVIEWED
+  PUBLISHED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  APPRENTICESHIP
+  INTERNSHIP
+}
+
+// Section 3: "Qualification pages: 10th, 12th, ITI, Diploma, Graduate, PG,
+// B.Tech, M.Tech, MBA, LLB, MBBS, PhD." Modeled as an enum used in a scalar
+// array on Job (a posting can accept multiple qualification levels), not a
+// join table — Section 3 lists this as a Job field, not a supporting table.
+enum QualificationLevel {
+  TENTH
+  TWELFTH
+  ITI
+  DIPLOMA
+  GRADUATE
+  POST_GRADUATE
+  B_TECH
+  M_TECH
+  MBA
+  LLB
+  MBBS
+  PHD
+}
+
+enum ScraperRunStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+// RBAC per CLAUDE.md's resolved open item. GUEST is not a DB row — it's
+// simply the absence of an authenticated User.
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+// ---------------------------------------------------------------------------
+// Core content model (Section 3)
+// ---------------------------------------------------------------------------
+
+model Job {
+  id     String @id @default(cuid())
+  title  String
+  slug   String @unique
+
+  department String
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  advertisementNumber String?
+  vacancies           Int?
+  qualifications      QualificationLevel[]
+  salary              String?
+  ageLimit            String?
+
+  applicationStart DateTime?
+  applicationEnd   DateTime?
+  examDate         DateTime?
+
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+
+  states JobState[]
+
+  jobType JobType
+
+  officialNotificationUrl String
+  officialApplyUrl        String?
+  officialWebsite         String
+
+  description       String
+  howToApply         String?
+  selectionProcess   String?
+  applicationFee     String?
+
+  seoTitle       String?
+  seoDescription String?
+
+  status      JobStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  // Provenance — which scraper produced this job, for duplicate detection
+  // (Section 4: compare officialNotificationUrl, advertisementNumber, title)
+  // and for the admin staleness view. Nullable: an admin-created job has no
+  // source.
+  source   Source? @relation(fields: [sourceId], references: [id])
+  sourceId String?
+
+  bookmarks Bookmark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indexes per Section 3: "proper indexes on slug, status, category,
+  // state, and application_end (list/filter/sort queries depend on these)."
+  // slug is already unique (implicit index). status/categoryId/
+  // applicationEnd get explicit indexes; state is indexed on the join table
+  // below. officialNotificationUrl + advertisementNumber are indexed to
+  // support Section 4's duplicate-detection lookups.
+  @@index([status])
+  @@index([categoryId])
+  @@index([applicationEnd])
+  @@index([officialNotificationUrl])
+  @@index([advertisementNumber])
+  @@index([sourceId])
+  @@index([status, publishedAt])
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+
+  jobs Job[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model State {
+  id               String  @id @default(cuid())
+  name             String  @unique
+  slug             String  @unique
+  isUnionTerritory Boolean @default(false)
+
+  jobs JobState[]
+
+  createdAt DateTime @default(now())
+}
+
+// Explicit join model (not an implicit m2m) so we can index stateId
+// directly for state-page queries per Section 3's indexing requirement.
+model JobState {
+  job     Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId   String
+  state   State  @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  stateId String
+
+  @@id([jobId, stateId])
+  @@index([stateId])
+}
+
+model Organization {
+  id      String  @id @default(cuid())
+  name    String  @unique
+  slug    String  @unique
+  website String?
+
+  jobs Job[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// One row per official source the scraper system pulls from (SSC, UPSC,
+// IBPS, RRB, ISRO, ...). robotsTxt* fields exist so Phase 3's "check
+// robots.txt/ToS before scraping" requirement (CLAUDE.md open item) has
+// somewhere to record its findings, without this phase implementing the
+// actual check.
+model Source {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  slug     String  @unique
+  baseUrl  String
+  isActive Boolean @default(true)
+
+  robotsTxtCheckedAt DateTime?
+  robotsTxtAllowed   Boolean?
+  robotsTxtNotes      String?
+
+  jobs        Job[]
+  scraperLogs ScraperLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Section 4: "Scheduler ... logs every execution (start, end, success/fail,
+// error)" and "Admin panel exposes per-source last successful run and
+// staleness, not just pass/fail logs."
+model ScraperLog {
+  id     String @id @default(cuid())
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceId String
+
+  status ScraperRunStatus
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  jobsCreated          Int @default(0)
+  jobsUpdated          Int @default(0)
+  jobsSkippedDuplicate Int @default(0)
+
+  errorMessage String?
+
+  @@index([sourceId, startedAt])
+  @@index([status])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         UserRole @default(USER)
+
+  emailVerified Boolean @default(false)
+
+  bookmarks Bookmark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Bookmark {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  job    Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId  String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([jobId])
+}
