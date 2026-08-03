@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc --noEmit",
-    "dev": "echo 'web dev server not scaffolded yet — see src/index.ts TODO'",
+    "build": "next build",
+    "dev": "next dev -p 3000",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'no lint configured yet'",
     "test": "echo 'no tests yet'",
@@ -13,9 +13,19 @@
   "dependencies": {
     "@govjobpulse/types": "workspace:*",
     "@govjobpulse/shared": "workspace:*",
-    "@govjobpulse/config": "workspace:*"
+    "@govjobpulse/config": "workspace:*",
+    "@govjobpulse/database": "workspace:*",
+    "next": "^15.0.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@types/node": "^22.7.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^3.4.14",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20"
   }
 }
