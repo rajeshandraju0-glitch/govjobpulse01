@@ -18,9 +18,28 @@
 
 import cron from "node-cron";
 import { SCRAPER_REGISTRY } from "@govjobpulse/scraper-core";
+import { eventBus } from "@govjobpulse/shared";
 import { runScraperModule } from "./run-scraper";
 
 const CRON_EXPRESSION = "*/30 * * * *"; // every 30 minutes
+
+// First real subscribers to Section 5's event bus: logging is
+// deliberately NOT inside run-scraper.ts itself — that module just
+// emits, and doesn't know or care who's listening. This is the point of
+// decoupling via events rather than the scraper runner calling a logger
+// directly. Phase 8's notification adapters will subscribe to
+// JobPublished the same way, once they exist.
+eventBus.on("ScraperCompleted", (payload) => {
+  console.log(
+    `[event] ScraperCompleted: ${payload.sourceSlug} — ${payload.jobsCreated} created, ${payload.jobsSkippedDuplicate} duplicate(s) skipped (${payload.durationMs}ms)`
+  );
+});
+eventBus.on("ScraperFailed", (payload) => {
+  console.error(`[event] ScraperFailed: ${payload.sourceSlug} — ${payload.errorMessage}`);
+});
+eventBus.on("JobCreated", (payload) => {
+  console.log(`[event] JobCreated: ${payload.slug} (source: ${payload.sourceSlug ?? "manual"})`);
+});
 
 async function runAllScrapers(): Promise<void> {
   console.log(`[scheduler] Starting run for ${SCRAPER_REGISTRY.length} source(s)...`);

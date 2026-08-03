@@ -12,6 +12,7 @@
 
 import { prisma, JobStatus, JobType, ScraperRunStatus } from "@govjobpulse/database";
 import { checkRobotsAllowed, runWithRetry, partitionDuplicates, type ExistingJobKey } from "@govjobpulse/scraper-core";
+import { eventBus } from "@govjobpulse/shared";
 import type { ScraperModule } from "@govjobpulse/types";
 
 export interface RunScraperOptions {
@@ -82,6 +83,10 @@ export async function runScraperModule(
         errorMessage: `robots.txt disallows scraping: ${robotsCheck.notes}`,
       },
     });
+    eventBus.emit("ScraperFailed", {
+      sourceSlug: module.source.slug,
+      errorMessage: `robots.txt disallows scraping: ${robotsCheck.notes}`,
+    });
     return;
   }
 
@@ -116,7 +121,7 @@ export async function runScraperModule(
         },
       });
 
-      await prisma.job.create({
+      const created = await prisma.job.create({
         data: {
           title: job.title,
           slug: slugify(`${job.title}-${job.advertisementNumber ?? Date.now()}`),
@@ -135,6 +140,17 @@ export async function runScraperModule(
           sourceId: source.id,
         },
       });
+
+      // Section 5: JobCreated fires here — a real insert, not a
+      // placeholder wiring. Note this fires on every scraped DRAFT, not
+      // on publish (that's JobPublished, still TODO below — it has no
+      // trigger yet since the moderation UI that promotes
+      // draft -> reviewed -> published doesn't exist until Phase 9).
+      eventBus.emit("JobCreated", {
+        jobId: created.id,
+        slug: created.slug,
+        sourceSlug: module.source.slug,
+      });
     }
 
     await prisma.scraperLog.create({
@@ -147,6 +163,13 @@ export async function runScraperModule(
         jobsSkippedDuplicate: duplicates.length,
       },
     });
+
+    eventBus.emit("ScraperCompleted", {
+      sourceSlug: module.source.slug,
+      jobsCreated: newJobs.length,
+      jobsSkippedDuplicate: duplicates.length,
+      durationMs: Date.now() - startedAt.getTime(),
+    });
   } catch (err) {
     await prisma.scraperLog.create({
       data: {
@@ -156,6 +179,11 @@ export async function runScraperModule(
         finishedAt: new Date(),
         errorMessage: (err as Error).message,
       },
+    });
+
+    eventBus.emit("ScraperFailed", {
+      sourceSlug: module.source.slug,
+      errorMessage: (err as Error).message,
     });
     // Deliberately not re-thrown: one source failing (after exhausting
     // retries) must not crash the scheduler or block other sources' runs
