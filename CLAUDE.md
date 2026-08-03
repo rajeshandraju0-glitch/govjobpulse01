@@ -74,23 +74,34 @@ repo. Read this before doing anything else. Keep it current after every phase.
   is derived at query time from `applicationEnd < now()`. This preserves
   Section 6's SEO long-tail requirement — deleting/delisting pages would
   actively work against it.
-- ⬜ **Scraper legal/ToS compliance (before Phase 3):** check robots.txt and
-  ToS for each official source before writing extraction logic; log/flag
-  ambiguous cases rather than scraping first and asking later. Schema
-  support for this landed in Phase 2 (`Source.robotsTxtCheckedAt/Allowed/Notes`);
-  the actual checking logic is still Phase 3's job.
-- ⬜ **PDF parsing reality (before Phase 3's PDF workstream):** many gov
+- ✅ **Scraper legal/ToS compliance — addressed in Phase 3 for ISRO.**
+  ISRO's Website Policy (isro.gov.in/Website_Policy.html, reviewed directly)
+  explicitly permits reproducing site material free of charge in any format,
+  conditioned on accurate reproduction, non-derogatory use, and prominently
+  acknowledging the source. Could not fetch/verify isro.gov.in/robots.txt
+  directly in this sandbox (see limitation below), so `checkRobotsAllowed()`
+  in `packages/scraper-core/src/robots.ts` performs this check **at
+  runtime, every scraper run** (not a one-time audit) and fails closed
+  (disallows) on network error rather than assuming permission. Still
+  open: doing this same review (policy + robots.txt) for each of the
+  ~19 other sources before their scrapers are written.
+- ✅ **Content reproduction / attribution pattern — resolved in Phase 3.**
+  Given ISRO's explicit reuse-with-attribution policy, the pattern is:
+  store `officialNotificationUrl` (already a required Job field) and
+  surface it prominently in the UI as "Source: official notification" —
+  Phase 6/7's job page template must not omit this. Revisit per-source
+  if other sources' policies are more restrictive.
+- ⬜ **PDF parsing reality (before Phase 4's PDF workstream):** many gov
   notification PDFs are scanned images / multi-column — plain text
   extraction (e.g. `pdf-parse`) won't be sufficient for all sources; OCR
-  fallback likely needed. Don't assume text-layer extraction is enough.
+  fallback likely needed. ISRO's notices do link a PDF (`notificationPdfUrl`
+  in `sources/isro.ts`) that Phase 3 does not parse — the detail HTML page
+  itself was structured enough to avoid needing PDF parsing for this one
+  source, but that won't hold for most others.
 - ⬜ **Review-queue bottleneck fallback (before Phase 4):** 20+ sources on a
   30-min cron could outpace a human reviewer. Confidence-scored auto-review
   is mentioned as a maybe-later in the brief — decide the interim fallback
   before this becomes a real backlog.
-- ⬜ **Content reproduction / attribution pattern (before Phase 3):** decide
-  whether job descriptions get rewritten/summarized vs. reproduced from
-  source PDFs, and make linking back to `officialNotificationUrl`
-  mandatory in the UI (field exists on `Job` since Phase 2).
 
 ## Known environment limitation (this sandbox only)
 
@@ -113,6 +124,21 @@ network access. What I verified instead in Phase 2, given that constraint:
   environment with normal network access before trusting the schema
   further — run `pnpm --filter @govjobpulse/database db:migrate` then
   `db:seed`, and treat that as the real completion check for Phase 2.
+
+**Second limitation, found in Phase 3:** this sandbox's `bash_tool` has no
+general internet egress (only specific package registries — see the
+network_configuration in the system prompt), so a real HTTP client
+(`fetch`/`curl`/cheerio) run from inside the container cannot reach any
+live government website. The separate `web_fetch`/`web_search` tools *can*
+reach the live web, but return Markdown-converted content, not raw HTML —
+so even they can't be used to inspect a page's actual DOM/CSS structure for
+writing scraper selectors. Net effect: `packages/scraper-core`'s ISRO
+parsing logic was written against fixture HTML reconstructed from
+Markdown-converted content, not validated against real raw HTML. Treat any
+new scraper's selectors as unverified until run against the live site from
+an environment with normal network access (Claude Code, CI, or a real dev
+machine) — write fixture-based unit tests here as usual, but budget a real
+live-site smoke test before trusting a scraper in production.
 
 ## Environment variables (running log)
 
@@ -145,6 +171,7 @@ scaffolding only). First real check-in: Phase 6 or Phase 7._
 |---|---|---|
 | 1. Repo scaffolding + monorepo setup | ✅ Complete | pnpm workspaces + Turborepo; 4 apps + 5 packages scaffolded as placeholder TS packages; build/typecheck/lint/test all pass (12/12 tasks) across the workspace. No app framework code yet (Next.js/Express/Prisma all deferred to the phases that build against a real schema). |
 | 2. Database schema | ⚠️ Complete, unverified by CLI | Prisma schema for Section 3's content model + resolved RBAC/archival open items + seed script for real categories/states. `pnpm run typecheck` passes 12/12 (doesn't need the engine). `pnpm run build` **fails** at `@govjobpulse/database` in this sandbox only — `prisma generate` needs `binaries.prisma.sh`, which this sandbox's egress proxy blocks (`host_not_allowed`). Verified everything short of that: real local Postgres 16 running, schema manually cross-checked for relation/brace consistency. **Before trusting this schema further, run `pnpm --filter @govjobpulse/database db:migrate` then `db:seed` in an environment with normal network access** — that's the real completion check this phase couldn't finish here. |
+| 3. First scraper end-to-end + dup detection | ⚠️ Core logic verified, live run unverified | ISRO (isro.gov.in/Careers.html) chosen as first source: official, simple bilingual label/value table per notice, and — checked directly — ISRO's own Website Policy explicitly permits reproducing site material with attribution (resolves the content-attribution open item). `packages/scraper-core`: `robots.ts` (runtime robots.txt check, fails closed on network error, re-checked every run — not a one-time audit), `sources/isro.ts` (listing + detail parsing, split into pure `parse*Html` functions vs. thin `fetch*` network wrappers), `dedupe.ts` (Section 4's URL/advertisement-number/title matching). **21/21 vitest tests pass** against reconstructed fixtures + mocked fetch; `tsc --noEmit` clean for the package standalone. `apps/worker/src/scrapers/isro-run.ts` orchestrates robots-check → scrape → dedupe → `prisma.job.create(status: DRAFT)` → `ScraperLog`, wired for real but **not run against Postgres** (same Prisma CDN block as Phase 2) **or the live site** (this sandbox's fixtures were reconstructed from `web_fetch`'s Markdown-converted content, not raw HTML — the CSS selectors in `parseListingHtml`/`parseDetailHtml` are unverified against the real live DOM). Root `pnpm run typecheck`/`test` now fail workspace-wide because `worker` depends on `@govjobpulse/database`, cascading the Phase 2 Prisma block further — this is correct/expected behavior (the generated types genuinely don't exist yet), not a new bug. **Before trusting this scraper in production:** (1) run it against the real live page and confirm the selectors still match actual raw HTML, (2) run `db:migrate` + `db:seed` so `runIsroScraper()` can execute against a real Postgres and be confirmed end-to-end. |
 | 3. First scraper end-to-end + dup detection | ⬜ Not started | |
 | 4. Scraper generalization + scheduler + admin staleness view | ⬜ Not started | |
 | 5. Event bus | ⬜ Not started | |

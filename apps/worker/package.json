@@ -8,14 +8,19 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo 'no lint configured yet'",
     "test": "echo 'no tests yet'",
-    "clean": "rm -rf dist .next .turbo"
+    "clean": "rm -rf dist .next .turbo",
+    "scrape:isro": "tsx src/scrapers/isro-run.ts"
   },
   "dependencies": {
     "@govjobpulse/types": "workspace:*",
     "@govjobpulse/shared": "workspace:*",
-    "@govjobpulse/config": "workspace:*"
+    "@govjobpulse/config": "workspace:*",
+    "@govjobpulse/database": "workspace:*",
+    "@govjobpulse/scraper-core": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "@types/node": "^22.7.5"
   }
 }
