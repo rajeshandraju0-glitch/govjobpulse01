@@ -5,4 +5,7 @@
 
 export * from "./robots";
 export * from "./dedupe";
+export * from "./staleness";
+export * from "./retry";
+export * from "./registry";
 export * from "./sources/isro";

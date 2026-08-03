@@ -1,0 +1,158 @@
+/* GovJobPulse Admin — internal ops console.
+   Deliberately NOT the public site's marketing design (Section 0.1 locks
+   that for apps/web only). Reuses the brand's status colors semantically
+   (success/accent/danger map directly onto staleness levels) and its
+   data typeface (JetBrains Mono) for anything numeric/timestamped, since
+   those choices are about legibility of operational data, not branding.
+   Kept deliberately restrained: this is a tool people stare at during an
+   incident, not a page that needs a hero moment. */
+
+:root {
+  --bg: #0b1220;
+  --surface: #121b2e;
+  --surface-border: #1f2c47;
+  --text: #e2e8f0;
+  --text-dim: #8895ab;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --fresh: #16a34a;
+  --warning: #f59e0b;
+  --stale: #dc2626;
+  --never-run: #64748b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.shell-brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.shell-brand-sub {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.shell-main {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+
+.page-subtitle {
+  color: var(--text-dim);
+  font-size: 0.875rem;
+  margin: 0 0 1.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+th {
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.status-fresh {
+  color: var(--fresh);
+  background: color-mix(in srgb, var(--fresh) 15%, transparent);
+}
+
+.status-warning {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+}
+
+.status-stale {
+  color: var(--stale);
+  background: color-mix(in srgb, var(--stale) 15%, transparent);
+}
+
+.status-never_run {
+  color: var(--never-run);
+  background: color-mix(in srgb, var(--never-run) 15%, transparent);
+}
+
+.empty-state {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-dim);
+}

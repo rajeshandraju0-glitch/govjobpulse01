@@ -16,7 +16,7 @@
 // against real raw HTML fetched by the worker's own HTTP client.
 
 import * as cheerio from "cheerio";
-import type { ScrapedJob } from "@govjobpulse/types";
+import type { ScrapedJob, ScraperModule } from "@govjobpulse/types";
 
 export const ISRO_SOURCE = {
   slug: "isro",
@@ -213,3 +213,18 @@ export async function scrapeIsro(fetchImpl: typeof fetch = fetch): Promise<Scrap
   }
   return jobs;
 }
+
+// Phase 4: ISRO as a ScraperModule, for the generalized registry
+// (packages/scraper-core/src/registry.ts). Thin wrapper around the
+// functions above — kept separate so scrapeIsro() stays independently
+// testable/callable the way Phase 3's tests already use it.
+export const isroScraperModule: ScraperModule = {
+  source: {
+    slug: ISRO_SOURCE.slug,
+    name: ISRO_SOURCE.name,
+    baseUrl: ISRO_SOURCE.baseUrl,
+    defaultCategorySlug: "central",
+  },
+  robotsCheckPath: ISRO_SOURCE.careersPath,
+  run: scrapeIsro,
+};

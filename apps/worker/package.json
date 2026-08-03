@@ -4,23 +4,26 @@
   "private": true,
   "scripts": {
     "build": "tsc --noEmit",
-    "dev": "echo 'worker dev server not scaffolded yet — see src/index.ts TODO'",
+    "dev": "tsx src/scheduler.ts",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'no lint configured yet'",
     "test": "echo 'no tests yet'",
     "clean": "rm -rf dist .next .turbo",
-    "scrape:isro": "tsx src/scrapers/isro-run.ts"
+    "scrape:isro": "tsx src/scrapers/isro-run.ts",
+    "scheduler": "tsx src/scheduler.ts"
   },
   "dependencies": {
     "@govjobpulse/types": "workspace:*",
     "@govjobpulse/shared": "workspace:*",
     "@govjobpulse/config": "workspace:*",
     "@govjobpulse/database": "workspace:*",
-    "@govjobpulse/scraper-core": "workspace:*"
+    "@govjobpulse/scraper-core": "workspace:*",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
     "tsx": "^4.19.1",
-    "@types/node": "^22.7.5"
+    "@types/node": "^22.7.5",
+    "@types/node-cron": "^3.0.11"
   }
 }
