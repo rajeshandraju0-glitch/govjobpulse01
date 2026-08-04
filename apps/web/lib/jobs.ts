@@ -70,12 +70,85 @@ export async function getRelatedJobs(categoryId: string, excludeJobId: string) {
   });
 }
 
+// Section 6: "Internal linking: ... previous/next navigation." Adjacent
+// within the same category, ordered by publishedAt — mirrors how a
+// student browsing a category would naturally step through listings.
+export async function getAdjacentJobs(job: { id: string; categoryId: string; publishedAt: Date | null }) {
+  if (!job.publishedAt) return { previous: null, next: null };
+
+  const [previous, next] = await Promise.all([
+    prisma.job.findFirst({
+      where: {
+        categoryId: job.categoryId,
+        status: JobStatus.PUBLISHED,
+        publishedAt: { lt: job.publishedAt },
+      },
+      orderBy: { publishedAt: "desc" },
+      select: { slug: true, title: true },
+    }),
+    prisma.job.findFirst({
+      where: {
+        categoryId: job.categoryId,
+        status: JobStatus.PUBLISHED,
+        publishedAt: { gt: job.publishedAt },
+      },
+      orderBy: { publishedAt: "asc" },
+      select: { slug: true, title: true },
+    }),
+  ]);
+
+  return { previous, next };
+}
+
 export async function getCategory(slug: string) {
   return prisma.category.findUnique({ where: { slug } });
 }
 
 export async function getState(slug: string) {
   return prisma.state.findUnique({ where: { slug } });
+}
+
+export async function searchJobs(params: { query: string; skip: number; take: number }) {
+  const take = clampPageSize(params.take);
+  const trimmed = params.query.trim();
+
+  if (!trimmed) return { jobs: [], total: 0 };
+
+  const where = {
+    status: JobStatus.PUBLISHED,
+    OR: [
+      { title: { contains: trimmed, mode: "insensitive" as const } },
+      { department: { contains: trimmed, mode: "insensitive" as const } },
+      { organization: { name: { contains: trimmed, mode: "insensitive" as const } } },
+    ],
+  };
+
+  const [jobs, total] = await Promise.all([
+    prisma.job.findMany({
+      where,
+      include: JOB_LIST_INCLUDE,
+      orderBy: { publishedAt: "desc" },
+      skip: params.skip,
+      take,
+    }),
+    prisma.job.count({ where }),
+  ]);
+
+  return { jobs, total };
+}
+
+// Section 6: "Internal linking: ... popular categories." Real published
+// job counts per category, ordered by that count — genuine data, not a
+// fabricated "trending" signal. A true click/view-based "trending jobs"
+// widget needs the analytics from Phase 12 (not built yet); this is
+// deliberately NOT that — see CLAUDE.md for the distinction.
+export async function getPopularCategories(limit = 6) {
+  const categories = await prisma.category.findMany({
+    include: { _count: { select: { jobs: { where: { status: JobStatus.PUBLISHED } } } } },
+    orderBy: { jobs: { _count: "desc" } },
+    take: limit,
+  });
+  return categories.filter((c) => c._count.jobs > 0);
 }
 
 export async function getAllCategories() {

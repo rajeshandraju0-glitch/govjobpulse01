@@ -4,13 +4,24 @@ import { getState, getPublishedJobs } from "@/lib/jobs";
 import { JobCard } from "@/components/JobCard";
 import { Pagination } from "@/components/Pagination";
 import { resolvePagination } from "@/lib/pagination";
+import { BreadcrumbJsonLd } from "@/components/json-ld/BreadcrumbJsonLd";
+import { absoluteUrl } from "@/lib/site";
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const state = await getState(params.slug);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const state = await getState(slug);
   if (!state) return {};
+  const title = `Government Jobs in ${state.name}`;
+  const description = `Verified government job notifications in ${state.name} — sourced directly from official notices.`;
   return {
-    title: `Government Jobs in ${state.name}`,
-    description: `Verified government job notifications in ${state.name} — sourced directly from official notices.`,
+    title,
+    description,
+    alternates: { canonical: absoluteUrl(`/states/${slug}`) },
+    openGraph: { title, description, url: absoluteUrl(`/states/${slug}`) },
   };
 }
 
@@ -18,17 +29,25 @@ export default async function StatePage({
   params,
   searchParams,
 }: {
-  params: { slug: string };
-  searchParams: { page?: string };
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
-  const state = await getState(params.slug);
+  const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
+  const state = await getState(slug);
   if (!state) notFound();
 
-  const { page, take, skip } = resolvePagination(searchParams);
-  const { jobs, total } = await getPublishedJobs({ skip, take, stateSlug: params.slug });
+  const { page, take, skip } = resolvePagination(resolvedSearchParams);
+  const { jobs, total } = await getPublishedJobs({ skip, take, stateSlug: slug });
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-12">
+      <BreadcrumbJsonLd
+        crumbs={[
+          { name: "Home", path: "/" },
+          { name: state.name, path: `/states/${slug}` },
+        ]}
+      />
       <p className="text-xs font-medium uppercase tracking-wide text-primary">
         {state.isUnionTerritory ? "Union Territory" : "State"}
       </p>
@@ -46,7 +65,7 @@ export default async function StatePage({
         </div>
       )}
 
-      <Pagination currentPage={page} totalItems={total} pageSize={take} basePath={`/states/${params.slug}`} />
+      <Pagination currentPage={page} totalItems={total} pageSize={take} basePath={`/states/${slug}`} />
     </section>
   );
 }

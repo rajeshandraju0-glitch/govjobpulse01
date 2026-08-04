@@ -19,9 +19,10 @@ export function Hero({ totalPublishedJobs }: HeroProps) {
           notification, admit card, result and answer key the moment it&apos;s released — organised
           and built for students who can&apos;t afford to miss a deadline.
         </p>
-        <div className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full bg-white/10 p-1.5 backdrop-blur-sm">
+        <form action="/search" method="get" className="mx-auto mt-8 flex max-w-md items-center gap-2 rounded-full bg-white/10 p-1.5 backdrop-blur-sm">
           <input
             type="search"
+            name="q"
             placeholder="Search by post, department, or exam..."
             className="w-full rounded-full bg-transparent px-4 py-2 text-sm text-white placeholder:text-white/50 focus:outline-none"
             aria-label="Search jobs"
@@ -32,7 +33,7 @@ export function Hero({ totalPublishedJobs }: HeroProps) {
           >
             Search
           </button>
-        </div>
+        </form>
         <p className="mt-6 font-data text-sm text-white/50">
           {totalPublishedJobs.toLocaleString("en-IN")} verified openings currently live · All
           states covered

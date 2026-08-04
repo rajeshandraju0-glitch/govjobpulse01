@@ -10,6 +10,14 @@ export function Footer() {
           confirm details there before applying.
         </p>
         <p className="mt-6">© {new Date().getFullYear()} GovJobPulse. All states covered.</p>
+        <p className="mt-2 flex gap-4 text-xs">
+          <a href="/sitemap-html" className="hover:text-primary">
+            Sitemap
+          </a>
+          <a href="/feed.xml" className="hover:text-primary">
+            RSS Feed
+          </a>
+        </p>
       </div>
     </footer>
   );

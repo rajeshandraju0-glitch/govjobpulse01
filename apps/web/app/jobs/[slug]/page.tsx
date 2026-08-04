@@ -1,19 +1,40 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getJobBySlug, getRelatedJobs } from "@/lib/jobs";
+import { getJobBySlug, getRelatedJobs, getAdjacentJobs } from "@/lib/jobs";
 import { VerifiedSourceBadge } from "@/components/VerifiedSourceBadge";
 import { JobCard } from "@/components/JobCard";
+import { JobPostingJsonLd } from "@/components/json-ld/JobPostingJsonLd";
+import { BreadcrumbJsonLd } from "@/components/json-ld/BreadcrumbJsonLd";
+import { generateSeoTitle, generateSeoDescription } from "@govjobpulse/shared";
+import { absoluteUrl } from "@/lib/site";
 
 // NOT RUN in this sandbox — see CLAUDE.md's Prisma/network limitation.
-// Basic per-page metadata only; the full Section 6 JSON-LD pass
-// (JobPosting schema, breadcrumbs, OG images, etc.) is explicitly
-// Phase 7's scope, not fabricated here ahead of that phase.
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const job = await getJobBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const job = await getJobBySlug(slug);
   if (!job) return {};
+
+  // Manual override always wins; auto-generated (Section 6) is the
+  // fallback, never the other way around.
+  const title = job.seoTitle ?? generateSeoTitle({
+    title: job.title,
+    organizationName: job.organization.name,
+    vacancies: job.vacancies,
+    applicationEnd: job.applicationEnd,
+  });
+  const description = job.seoDescription ?? generateSeoDescription({
+    title: job.title,
+    organizationName: job.organization.name,
+    vacancies: job.vacancies,
+    applicationEnd: job.applicationEnd,
+  });
+
   return {
-    title: job.seoTitle ?? job.title,
-    description: job.seoDescription ?? job.description.slice(0, 155),
+    title,
+    description,
+    alternates: { canonical: absoluteUrl(`/jobs/${job.slug}`) },
+    openGraph: { title, description, type: "article", url: absoluteUrl(`/jobs/${job.slug}`) },
+    twitter: { title, description },
   };
 }
 
@@ -22,15 +43,28 @@ function formatDate(date: Date | null): string | null {
   return new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-export default async function JobDetailPage({ params }: { params: { slug: string } }) {
-  const job = await getJobBySlug(params.slug);
+export default async function JobDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const job = await getJobBySlug(slug);
   if (!job || job.status !== "PUBLISHED") notFound();
 
-  const related = await getRelatedJobs(job.categoryId, job.id);
+  const [related, adjacent] = await Promise.all([
+    getRelatedJobs(job.categoryId, job.id),
+    getAdjacentJobs(job),
+  ]);
   const isClosed = job.applicationEnd ? new Date(job.applicationEnd) < new Date() : false;
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-12">
+      <BreadcrumbJsonLd
+        crumbs={[
+          { name: "Home", path: "/" },
+          { name: job.category.name, path: `/categories/${job.category.slug}` },
+          { name: job.title, path: `/jobs/${job.slug}` },
+        ]}
+      />
+      <JobPostingJsonLd job={job} />
+
       <nav className="text-xs text-secondary/50" aria-label="Breadcrumb">
         <a href="/" className="hover:text-primary">
           Home
@@ -136,6 +170,25 @@ export default async function JobDetailPage({ params }: { params: { slug: string
           </a>
         )}
       </div>
+
+      {(adjacent.previous || adjacent.next) && (
+        <nav className="mt-10 flex items-center justify-between border-t border-secondary/10 pt-6 text-sm">
+          {adjacent.previous ? (
+            <a href={`/jobs/${adjacent.previous.slug}`} className="max-w-[45%] text-primary hover:underline">
+              ← {adjacent.previous.title}
+            </a>
+          ) : (
+            <span />
+          )}
+          {adjacent.next ? (
+            <a href={`/jobs/${adjacent.next.slug}`} className="max-w-[45%] text-right text-primary hover:underline">
+              {adjacent.next.title} →
+            </a>
+          ) : (
+            <span />
+          )}
+        </nav>
+      )}
 
       {related.length > 0 && (
         <section className="mt-12">

@@ -128,3 +128,70 @@ export class EventBus {
 // directly rather than constructing their own EventBus, so publishing
 // in one module reaches subscribers registered by another.
 export const eventBus = new EventBus();
+
+// Section 6: "Meaningful, human-first seo_title / seo_description per
+// job, auto-generated from structured fields with the option to
+// override manually." Pure functions over plain job-shaped data (no
+// Prisma dependency) so they're testable without a database, and so
+// apps/web calls `job.seoTitle ?? generateSeoTitle(job)` — manual
+// override always wins, this is only the fallback.
+
+export interface SeoJobFields {
+  title: string;
+  organizationName: string;
+  vacancies: number | null;
+  applicationEnd: Date | null;
+}
+
+export function generateSeoTitle(job: SeoJobFields): string {
+  const year = job.applicationEnd?.getFullYear() ?? new Date().getFullYear();
+  return `${job.title} — ${job.organizationName} Recruitment ${year}`;
+}
+
+export function generateSeoDescription(job: SeoJobFields): string {
+  // Built in priority order and only appended while there's room, so
+  // truncation drops the least important detail first — never the
+  // "verified against the official notification" sentence, which is
+  // the actual trust signal and shouldn't be the casualty of a long
+  // job title. Core sentence kept concise ("Org: Title.") rather than
+  // a longer "Org has released a notification for Title." phrasing —
+  // realistic job titles + organization names eat most of a 160-char
+  // budget on their own, so the wording needs to leave room for the
+  // vacancy/date details, not just the trust signal.
+  const MAX_LENGTH = 160;
+  const core = `${job.organizationName}: ${job.title}.`;
+  const verified = "Verified against the official notification.";
+
+  const optional: string[] = [];
+  if (job.vacancies !== null) {
+    optional.push(`${job.vacancies.toLocaleString("en-IN")} vacancies.`);
+  }
+  if (job.applicationEnd) {
+    optional.push(
+      `Last date to apply: ${job.applicationEnd.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })}.`
+    );
+  }
+
+  let result = core;
+  for (const sentence of optional) {
+    const candidate = `${result} ${sentence}`;
+    if ((candidate + " " + verified).length <= MAX_LENGTH) {
+      result = candidate;
+    }
+  }
+
+  const withVerified = `${result} ${verified}`;
+  if (withVerified.length <= MAX_LENGTH) return withVerified;
+
+  // Even the core + verified sentence alone doesn't fit (a very long
+  // title) — truncate the core, but keep "verified" intact since it's
+  // the fixed, non-negotiable trust signal.
+  const room = MAX_LENGTH - verified.length - 4; // 4 for "... "
+  return `${core.slice(0, room)}... ${verified}`;
+}
+
+
