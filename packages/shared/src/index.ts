@@ -167,6 +167,46 @@ export function isTokenExpired(expiresAt: Date | null, now: Date = new Date()): 
 // apps/web calls `job.seoTitle ?? generateSeoTitle(job)` — manual
 // override always wins, this is only the fallback.
 
+// Section 8: "every job page gets Facebook, LinkedIn, Twitter, Telegram,
+// WhatsApp share buttons and Copy Link, using the Open Graph metadata
+// from Section 6. This is user-initiated sharing, distinct from the
+// automated posting adapters [Section 7] above, and should ship in this
+// phase" — unlike Phase 10's subscription foundations, Section 8 is
+// explicit this is NOT architecture-only. Pure URL-building logic here
+// so it's unit-testable without a browser; apps/web's
+// SocialShareButtons component is a thin render of these.
+
+export interface ShareLinks {
+  facebook: string;
+  linkedin: string;
+  twitter: string;
+  telegram: string;
+  whatsapp: string;
+}
+
+export function buildShareLinks(url: string, title: string): ShareLinks {
+  const encodedUrl = encodeURIComponent(url);
+  const encodedTitle = encodeURIComponent(title);
+
+  return {
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+    linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+    twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`,
+    telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}`,
+    // WhatsApp has no separate url/text params — everything goes in one
+    // "text" param, with the URL appended at the end (standard WhatsApp
+    // share-link convention, matches what WhatsApp's own share buttons do).
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`,
+  };
+}
+
+// Section 6: "Meaningful, human-first seo_title / seo_description per
+// job, auto-generated from structured fields with the option to
+// override manually." Pure functions over plain job-shaped data (no
+// Prisma dependency) so they're testable without a database, and so
+// apps/web calls `job.seoTitle ?? generateSeoTitle(job)` — manual
+// override always wins, this is only the fallback.
+
 export interface SeoJobFields {
   title: string;
   organizationName: string;

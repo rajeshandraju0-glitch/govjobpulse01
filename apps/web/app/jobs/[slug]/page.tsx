@@ -5,6 +5,7 @@ import { VerifiedSourceBadge } from "@/components/VerifiedSourceBadge";
 import { JobCard } from "@/components/JobCard";
 import { JobPostingJsonLd } from "@/components/json-ld/JobPostingJsonLd";
 import { BreadcrumbJsonLd } from "@/components/json-ld/BreadcrumbJsonLd";
+import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { generateSeoTitle, generateSeoDescription } from "@govjobpulse/shared";
 import { absoluteUrl } from "@/lib/site";
 
@@ -169,6 +170,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
             Apply now
           </a>
         )}
+      </div>
+
+      <div className="mt-6">
+        <SocialShareButtons url={absoluteUrl(`/jobs/${job.slug}`)} title={job.title} />
       </div>
 
       {(adjacent.previous || adjacent.next) && (
