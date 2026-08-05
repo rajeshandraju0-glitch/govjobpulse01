@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
-// TODO(Phase 9): a real landing page once there's more than one admin
-// screen (job moderation queue, Social Integrations panel, ...). For
-// now /sources (Phase 4's staleness view) is the only screen, so the
-// root just redirects there.
+// TODO(Phase 15 dev-experience pass, or whenever a 4th screen lands): a
+// real landing/dashboard page once there's enough to summarize across
+// screens. For now /moderation is the most actionable default — an
+// admin opening this app most likely wants to know what needs review.
 export default function AdminHome() {
-  redirect("/sources");
+  redirect("/moderation");
 }

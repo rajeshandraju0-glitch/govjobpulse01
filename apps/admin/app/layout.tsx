@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="shell-brand">GovJobPulse</span>
             <span className="shell-brand-sub">Admin</span>
             <nav className="shell-nav">
+              <Link href="/moderation">Moderation</Link>
               <Link href="/sources">Sources</Link>
               <Link href="/integrations">Social Integrations</Link>
             </nav>

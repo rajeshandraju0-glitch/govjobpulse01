@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // Section 7: "The website must keep functioning even if every
@@ -48,29 +48,61 @@ describe("apps/web has no dependency on the notification system (Section 7)", ()
 });
 
 describe("apps/admin's coupling to the notification system is deliberately narrower than apps/web's", () => {
-  // Revised in Phase 9: the Social Integrations panel needs a real
-  // "test connection" action per provider, which means calling
-  // provider.healthCheck() — a direct HTTP request to that platform's
-  // API, not a queue operation. That's a legitimate reason for admin to
-  // depend on @govjobpulse/notifications that apps/web has no
-  // equivalent need for, so the two apps get different assertions here
-  // rather than the same blanket rule. What's NOT legitimate, for
-  // either app, is depending on bullmq/ioredis directly — enqueueing
-  // and sending stays exclusively in apps/worker. If admin ever needs
-  // to enqueue something, that should go through an API call to a
-  // worker-owned endpoint, not a direct BullMQ dependency in admin
-  // itself.
+  // Revised TWICE now — documenting both revisions rather than quietly
+  // overwriting the reasoning, since each was a real correction:
+  //
+  // Phase 9 (first revision): admin needs @govjobpulse/notifications for
+  // provider.healthCheck() (a direct HTTP call, no queue).
+  //
+  // Phase 9.5 (this revision): building the job moderation UI (see
+  // CLAUDE.md's Open Items — Section 13's backlog had no dedicated
+  // phase for this) surfaced that admin's "publish" action needs to
+  // enqueue a NEW_JOB notification, and it runs in a DIFFERENT PROCESS
+  // than apps/worker. Phase 5's EventBus is explicitly in-process only
+  // — admin emitting on its own EventBus instance can never reach
+  // worker's subscriber, they're different Node processes with
+  // separate module registries. The original "admin never depends on
+  // bullmq" rule assumed admin would call a worker-owned HTTP endpoint
+  // instead, but no such endpoint exists (apps/api isn't built yet).
+  //
+  // The actual fix, and BullMQ's own intended pattern: `Queue` is a
+  // lightweight PRODUCER handle, safe to instantiate in any process —
+  // that's what admin needs. `Worker` is the CONSUMER, and should have
+  // exactly one owner (apps/worker). So the real boundary isn't "admin
+  // never touches bullmq" — it's "admin may enqueue (Queue.add), admin
+  // must never consume (never instantiate a Worker)". The dependency
+  // check alone can't distinguish Queue-usage from Worker-usage (both
+  // come from the same package), so this is paired with a source-level
+  // check that admin's code never constructs a `new Worker(`.
   const adminPackageJson = readPackageJson("apps/admin/package.json");
 
-  it("may depend on @govjobpulse/notifications (for provider.healthCheck() only)", () => {
+  it("may depend on @govjobpulse/notifications (healthCheck) and bullmq (Queue.add — producer only)", () => {
     expect(adminPackageJson.dependencies).toHaveProperty("@govjobpulse/notifications");
+    expect(adminPackageJson.dependencies).toHaveProperty("bullmq");
   });
 
-  it("does NOT depend on bullmq directly — queueing/sending is apps/worker's job, not admin's", () => {
-    expect(adminPackageJson.dependencies).not.toHaveProperty("bullmq");
+  it("never instantiates a BullMQ Worker (consumer) — that stays exclusively in apps/worker", () => {
+    const adminAppDir = join(__dirname, "..", "..", "..", "apps", "admin", "app");
+    const offendingFiles = findFilesContaining(adminAppDir, /new\s+Worker\s*\(/);
+    expect(offendingFiles).toEqual([]);
   });
 
-  it("does NOT depend on ioredis directly", () => {
+  it("does NOT depend on ioredis directly — admin uses packages/notifications' createRedisConnection helper, not its own connection setup", () => {
     expect(adminPackageJson.dependencies).not.toHaveProperty("ioredis");
   });
 });
+
+function findFilesContaining(dir: string, pattern: RegExp): string[] {
+  const matches: string[] = [];
+  const entries = readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      matches.push(...findFilesContaining(fullPath, pattern));
+    } else if (/\.(ts|tsx)$/.test(entry.name)) {
+      const content = readFileSync(fullPath, "utf-8");
+      if (pattern.test(content)) matches.push(fullPath);
+    }
+  }
+  return matches;
+}

@@ -17,6 +17,7 @@
     "@govjobpulse/database": "workspace:*",
     "@govjobpulse/scraper-core": "workspace:*",
     "@govjobpulse/notifications": "workspace:*",
+    "bullmq": "^5.21.2",
     "next": "^15.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
