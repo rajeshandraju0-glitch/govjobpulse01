@@ -96,6 +96,44 @@ async function main() {
     });
   }
   console.log(`Seeded ${STATES.length} states/UTs.`);
+
+  // Section 7/9: one config row per platform, seeded as disabled with
+  // the real required-env-var names — matches the platform/adapter
+  // pairing in packages/notifications. Nothing here is "fake data" per
+  // Section 1 rule 2: `enabled: false` is the accurate starting state
+  // (nothing is configured yet), not a placeholder pretending to be
+  // real status.
+  const PROVIDER_CONFIGS: Array<{ platform: string; requiredEnvVars: string[] }> = [
+    { platform: "TELEGRAM", requiredEnvVars: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] },
+    { platform: "FACEBOOK", requiredEnvVars: ["FACEBOOK_PAGE_ID", "FACEBOOK_PAGE_ACCESS_TOKEN"] },
+    { platform: "INSTAGRAM", requiredEnvVars: ["INSTAGRAM_BUSINESS_ACCOUNT_ID", "INSTAGRAM_ACCESS_TOKEN"] },
+    { platform: "LINKEDIN", requiredEnvVars: ["LINKEDIN_ORGANIZATION_URN", "LINKEDIN_ACCESS_TOKEN"] },
+    {
+      platform: "WHATSAPP",
+      requiredEnvVars: [
+        "WHATSAPP_PHONE_NUMBER_ID",
+        "WHATSAPP_ACCESS_TOKEN",
+        "WHATSAPP_CHANNEL_ID",
+        "WHATSAPP_TEMPLATE_NAME",
+      ],
+    },
+    { platform: "EMAIL", requiredEnvVars: ["EMAIL_API_KEY", "EMAIL_FROM_ADDRESS"] },
+    { platform: "PUSH", requiredEnvVars: ["FCM_PROJECT_ID", "FCM_SERVER_KEY"] },
+    { platform: "TWITTER", requiredEnvVars: ["TWITTER_USER_ACCESS_TOKEN"] },
+  ];
+
+  for (const config of PROVIDER_CONFIGS) {
+    await prisma.notificationProviderConfig.upsert({
+      where: { platform: config.platform as any },
+      update: {},
+      create: {
+        platform: config.platform as any,
+        enabled: false,
+        requiredEnvVars: config.requiredEnvVars,
+      },
+    });
+  }
+  console.log(`Seeded ${PROVIDER_CONFIGS.length} notification provider configs (all disabled).`);
 }
 
 main()

@@ -29,6 +29,9 @@ importers:
       '@govjobpulse/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@govjobpulse/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@govjobpulse/scraper-core':
         specifier: workspace:*
         version: link:../../packages/scraper-core

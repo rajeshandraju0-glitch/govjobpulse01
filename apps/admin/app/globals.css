@@ -60,6 +60,22 @@ body {
   font-size: 0.85rem;
 }
 
+.shell-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 1.25rem;
+}
+
+.shell-nav a {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.shell-nav a:hover {
+  color: var(--text);
+}
+
 .shell-main {
   flex: 1;
   padding: 1.5rem;
@@ -121,6 +137,17 @@ tr:last-child td {
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
+}
+
+button.status-pill {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button.status-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .status-pill::before {

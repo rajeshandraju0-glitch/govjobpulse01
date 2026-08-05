@@ -47,16 +47,30 @@ describe("apps/web has no dependency on the notification system (Section 7)", ()
   });
 });
 
-describe("apps/admin has no dependency on the notification system", () => {
+describe("apps/admin's coupling to the notification system is deliberately narrower than apps/web's", () => {
+  // Revised in Phase 9: the Social Integrations panel needs a real
+  // "test connection" action per provider, which means calling
+  // provider.healthCheck() — a direct HTTP request to that platform's
+  // API, not a queue operation. That's a legitimate reason for admin to
+  // depend on @govjobpulse/notifications that apps/web has no
+  // equivalent need for, so the two apps get different assertions here
+  // rather than the same blanket rule. What's NOT legitimate, for
+  // either app, is depending on bullmq/ioredis directly — enqueueing
+  // and sending stays exclusively in apps/worker. If admin ever needs
+  // to enqueue something, that should go through an API call to a
+  // worker-owned endpoint, not a direct BullMQ dependency in admin
+  // itself.
   const adminPackageJson = readPackageJson("apps/admin/package.json");
 
-  it("does not depend on @govjobpulse/notifications", () => {
-    // Admin will need this eventually (Phase 9's Social Integrations
-    // panel reads provider health/config), but that's a read path
-    // through packages/database's NotificationProviderConfig table,
-    // not a runtime dependency on the queue/adapter machinery itself.
-    // If Phase 9 adds this dependency, it should be for reading config,
-    // not for admin to be able to enqueue/send anything directly.
-    expect(adminPackageJson.dependencies).not.toHaveProperty("@govjobpulse/notifications");
+  it("may depend on @govjobpulse/notifications (for provider.healthCheck() only)", () => {
+    expect(adminPackageJson.dependencies).toHaveProperty("@govjobpulse/notifications");
+  });
+
+  it("does NOT depend on bullmq directly — queueing/sending is apps/worker's job, not admin's", () => {
+    expect(adminPackageJson.dependencies).not.toHaveProperty("bullmq");
+  });
+
+  it("does NOT depend on ioredis directly", () => {
+    expect(adminPackageJson.dependencies).not.toHaveProperty("ioredis");
   });
 });
