@@ -16,6 +16,14 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().startsWith("postgresql://", {
     message: "DATABASE_URL must be a postgresql:// connection string",
   }),
+  // Optional: only required by apps/worker's notification queues
+  // (packages/notifications). Not required for web/admin/api, which
+  // don't touch Redis directly — kept optional here rather than
+  // splitting into a per-app schema, since the cost of one extra
+  // optional field is lower than maintaining multiple schemas.
+  REDIS_URL: z.string().url().startsWith("redis://", {
+    message: "REDIS_URL must be a redis:// connection string",
+  }).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

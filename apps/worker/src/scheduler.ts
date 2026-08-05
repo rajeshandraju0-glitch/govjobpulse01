@@ -20,6 +20,7 @@ import cron from "node-cron";
 import { SCRAPER_REGISTRY } from "@govjobpulse/scraper-core";
 import { eventBus } from "@govjobpulse/shared";
 import { runScraperModule } from "./run-scraper";
+import { subscribeJobPublishedToNotifications } from "./notifications/subscribe";
 
 const CRON_EXPRESSION = "*/30 * * * *"; // every 30 minutes
 
@@ -27,8 +28,7 @@ const CRON_EXPRESSION = "*/30 * * * *"; // every 30 minutes
 // deliberately NOT inside run-scraper.ts itself — that module just
 // emits, and doesn't know or care who's listening. This is the point of
 // decoupling via events rather than the scraper runner calling a logger
-// directly. Phase 8's notification adapters will subscribe to
-// JobPublished the same way, once they exist.
+// directly.
 eventBus.on("ScraperCompleted", (payload) => {
   console.log(
     `[event] ScraperCompleted: ${payload.sourceSlug} — ${payload.jobsCreated} created, ${payload.jobsSkippedDuplicate} duplicate(s) skipped (${payload.durationMs}ms)`
@@ -40,6 +40,12 @@ eventBus.on("ScraperFailed", (payload) => {
 eventBus.on("JobCreated", (payload) => {
   console.log(`[event] JobCreated: ${payload.slug} (source: ${payload.sourceSlug ?? "manual"})`);
 });
+
+// Phase 8: JobPublished -> NEW_JOB queue. Registered at startup like the
+// listeners above; will not fire until Phase 9's admin moderation UI
+// actually emits JobPublished (see notifications/subscribe.ts's header
+// comment for why that's intentional, not a gap).
+subscribeJobPublishedToNotifications();
 
 async function runAllScrapers(): Promise<void> {
   console.log(`[scheduler] Starting run for ${SCRAPER_REGISTRY.length} source(s)...`);

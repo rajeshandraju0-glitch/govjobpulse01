@@ -60,6 +60,31 @@ enum ScraperRunStatus {
   PARTIAL
 }
 
+// Section 7: notification system foundation. Mirrors NotificationSendResult
+// in packages/types (SENT/FAILED/SKIPPED_DISABLED) plus queue-lifecycle
+// states a DB row can be in before a send is even attempted.
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED_DISABLED
+}
+
+// Section 7's 8 platforms, mirrored as an enum for the DB layer (the
+// TS-level NotificationProvider.slug in packages/notifications uses
+// matching string values — kept in sync manually since this schema and
+// that package don't share a generated type in either direction).
+enum NotificationPlatform {
+  TELEGRAM
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  WHATSAPP
+  EMAIL
+  PUSH
+  TWITTER
+}
+
 // RBAC per CLAUDE.md's resolved open item. GUEST is not a DB row — it's
 // simply the absence of an authenticated User.
 enum UserRole {
@@ -122,6 +147,7 @@ model Job {
   sourceId String?
 
   bookmarks Bookmark[]
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -262,4 +288,120 @@ model Bookmark {
 
   @@unique([userId, jobId])
   @@index([jobId])
+}
+
+// ---------------------------------------------------------------------------
+// Notification system foundation (Section 7) — adapters ship disabled by
+// default (packages/notifications); these tables exist so the system is
+// observable and configurable once an admin turns a platform on (Phase 9's
+// Social Integrations panel), without hardcoding any credentials here —
+// only *whether* a platform is enabled and *which* env var names it reads
+// from are stored; actual secret values stay in environment variables per
+// Section 1 rule 7.
+// ---------------------------------------------------------------------------
+
+// One row per (job, platform) send *intent* — created when a job is queued
+// for notification, independent of how many attempts it takes. Named
+// "NotificationProviderConfig" rather than the brief's literal
+// "NotificationProviders" to avoid colliding with the TS-level
+// NotificationProvider interface in packages/types, which represents the
+// adapter class, not this settings row.
+model Notification {
+  id       String               @id @default(cuid())
+  job      Job                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId    String
+  platform NotificationPlatform
+  status   NotificationStatus   @default(PENDING)
+
+  // Bridges this permanent Postgres row to the ephemeral BullMQ job in
+  // Redis (Redis job data doesn't persist indefinitely) — set once the
+  // notification is actually enqueued.
+  bullmqJobId String?
+  queueName   String?
+
+  logs NotificationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jobId])
+  @@index([platform, status])
+}
+
+// One row per send *attempt* (a Notification with 3 retry attempts gets 3
+// NotificationLog rows) — Section 7: "tracking platform, status, retries,
+// error message, execution time, timestamps."
+model NotificationLog {
+  id             String       @id @default(cuid())
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notificationId String
+
+  attemptNumber Int
+  status        NotificationStatus
+  errorMessage  String?
+  executionMs   Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([notificationId])
+}
+
+// Per-platform enable/disable + which env vars it reads from — the
+// DB-level half of the two-layer gate described in
+// packages/notifications/src/base-provider.ts (code-level isEnabled()
+// checks the env vars actually being present; this table is the
+// admin-facing on/off switch on top of that). No secret VALUES live
+// here, only which var NAMES are expected — Section 1 rule 7.
+model NotificationProviderConfig {
+  id       String               @id @default(cuid())
+  platform NotificationPlatform @unique
+  enabled  Boolean              @default(false)
+
+  // e.g. ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] — documents what
+  // this platform needs without storing the values themselves.
+  requiredEnvVars String[]
+
+  lastHealthCheckAt      DateTime?
+  lastHealthCheckHealthy Boolean?
+  lastHealthCheckDetail  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Snapshot of an enqueued BullMQ job for admin visibility/history —
+// BullMQ/Redis is the source of truth while a job is in flight, but
+// completed/failed jobs age out of Redis; this table is what survives
+// that and what Phase 9's admin panel queries against, rather than
+// reaching into Redis directly from a request handler.
+model NotificationQueueEntry {
+  id          String @id @default(cuid())
+  queueName   String
+  bullmqJobId String
+
+  notificationId String?
+
+  status      NotificationStatus @default(PENDING)
+  attemptsMade Int               @default(0)
+
+  enqueuedAt  DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([queueName, status])
+  @@index([bullmqJobId])
+}
+
+// Site-wide notification settings not scoped to any one platform — e.g.
+// a global kill switch, or digest send times. Deliberately a single-row
+// table (enforced at the application layer, not the schema, since Prisma
+// has no clean "exactly one row" constraint) rather than one row per
+// something, since these are genuinely global.
+model NotificationSettings {
+  id String @id @default(cuid())
+
+  globalKillSwitchEnabled Boolean @default(false)
+  dailyDigestSendHourUtc  Int     @default(3)
+  weeklyDigestDayOfWeek   Int     @default(1) // 0 = Sunday
+
+  updatedAt DateTime @updatedAt
 }

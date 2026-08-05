@@ -65,7 +65,46 @@ export interface SourceStaleness {
   level: StalenessLevel;
 }
 
-// Human-readable slugs for QualificationLevel (Prisma enum, generated
+// Section 7: notification adapters, one per platform, all implementing
+// this common interface. "All adapters ship disabled by default,
+// enabled only once real credentials are added via admin settings" —
+// `NotificationProvider.isEnabled()` is what enforces that at the
+// interface level; every adapter's implementation checks real config
+// (via @govjobpulse/config-style env validation), never a hardcoded
+// true. See packages/notifications for the actual per-platform
+// implementations.
+export interface NotificationJobPayload {
+  jobId: string;
+  slug: string;
+  title: string;
+  organizationName: string;
+  applicationEnd: Date | null;
+  url: string;
+}
+
+export interface NotificationSendResult {
+  providerSlug: string;
+  status: "SENT" | "FAILED" | "SKIPPED_DISABLED";
+  errorMessage?: string;
+  sentAt: Date;
+}
+
+export interface NotificationHealthCheckResult {
+  providerSlug: string;
+  healthy: boolean;
+  detail: string;
+}
+
+export interface NotificationProvider {
+  slug: string;
+  name: string;
+  isEnabled(): boolean;
+  sendJob(job: NotificationJobPayload): Promise<NotificationSendResult>;
+  sendBulk(jobs: NotificationJobPayload[]): Promise<NotificationSendResult[]>;
+  healthCheck(): Promise<NotificationHealthCheckResult>;
+}
+
+
 // separately in packages/database) — used to build qualification pages
 // (Section 3) without introducing a Qualification database table, which
 // Section 3 doesn't list as a supporting table. Kept here rather than in
