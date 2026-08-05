@@ -21,6 +21,7 @@ import { SCRAPER_REGISTRY } from "@govjobpulse/scraper-core";
 import { eventBus } from "@govjobpulse/shared";
 import { runScraperModule } from "./run-scraper";
 import { subscribeJobPublishedToNotifications } from "./notifications/subscribe";
+import { startDigestSchedulers } from "./digests/scheduler";
 
 const CRON_EXPRESSION = "*/30 * * * *"; // every 30 minutes
 
@@ -70,6 +71,7 @@ export function startScheduler(): void {
       console.error("[scheduler] Unexpected error in scheduled run:", err);
     });
   });
+  startDigestSchedulers();
 }
 
 if (require.main === module) {

@@ -85,6 +85,24 @@ enum NotificationPlatform {
   TWITTER
 }
 
+// Section 8: email subscription foundations. PENDING until the
+// verification link is clicked — an unverified address never receives
+// anything, so a typo'd/hostile signup can't be used to spam a stranger.
+enum SubscriberStatus {
+  PENDING
+  VERIFIED
+  UNSUBSCRIBED
+}
+
+// Section 8: push notification foundations. Web Push (VAPID) and native
+// FCM/APNs tokens have different shapes but the same lifecycle, so one
+// model with a platform discriminator rather than three separate tables.
+enum PushPlatform {
+  WEB
+  IOS
+  ANDROID
+}
+
 // RBAC per CLAUDE.md's resolved open item. GUEST is not a DB row — it's
 // simply the absence of an authenticated User.
 enum UserRole {
@@ -404,4 +422,50 @@ model NotificationSettings {
   weeklyDigestDayOfWeek   Int     @default(1) // 0 = Sunday
 
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Subscription foundations (Section 8) — "architecture only, no provider
+// integration yet." This is the data model + verification/unsubscribe
+// lifecycle; actual digest content assembly and sending are explicitly
+// out of scope for this phase (see CLAUDE.md's Phase 10 entry for the
+// real interface-mismatch reason why).
+// ---------------------------------------------------------------------------
+
+model NewsletterSubscriber {
+  id     String           @id @default(cuid())
+  email  String           @unique
+  status SubscriberStatus @default(PENDING)
+
+  // Single-use, expiring — an unverified signup can't sit around
+  // forever as a live verification link.
+  verificationToken          String?   @unique
+  verificationTokenExpiresAt DateTime?
+
+  // Always present so an unsubscribe link works even for a still-PENDING
+  // subscriber (someone should be able to back out before ever verifying).
+  unsubscribeToken String @unique
+
+  dailyDigest  Boolean @default(true)
+  weeklyDigest Boolean @default(false)
+
+  subscribedAt   DateTime  @default(now())
+  verifiedAt     DateTime?
+  unsubscribedAt DateTime?
+
+  @@index([status])
+  @@index([verificationToken])
+  @@index([unsubscribeToken])
+}
+
+model PushSubscription {
+  id       String       @id @default(cuid())
+  endpoint String       @unique
+  platform PushPlatform
+  active   Boolean      @default(true)
+
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([active])
 }

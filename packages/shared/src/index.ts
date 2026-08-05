@@ -136,6 +136,37 @@ export const eventBus = new EventBus();
 // apps/web calls `job.seoTitle ?? generateSeoTitle(job)` — manual
 // override always wins, this is only the fallback.
 
+// Section 8: email subscription verification/unsubscribe tokens. Pure
+// functions (crypto.randomBytes is deterministic-free but the logic
+// around it — expiry checking — is what's actually worth unit testing)
+// so apps/web's route handlers stay thin wrappers around this + Prisma.
+
+import { randomBytes } from "node:crypto";
+
+const VERIFICATION_TOKEN_TTL_HOURS = 24;
+
+export function generateSubscriptionToken(): string {
+  // 32 bytes -> 64 hex chars: long enough that guessing is infeasible,
+  // short enough to fit cleanly in a URL query param.
+  return randomBytes(32).toString("hex");
+}
+
+export function computeVerificationExpiry(now: Date = new Date()): Date {
+  return new Date(now.getTime() + VERIFICATION_TOKEN_TTL_HOURS * 60 * 60 * 1000);
+}
+
+export function isTokenExpired(expiresAt: Date | null, now: Date = new Date()): boolean {
+  if (!expiresAt) return true; // no expiry recorded == treat as expired, fail closed
+  return now.getTime() > expiresAt.getTime();
+}
+
+// Section 6: "Meaningful, human-first seo_title / seo_description per
+// job, auto-generated from structured fields with the option to
+// override manually." Pure functions over plain job-shaped data (no
+// Prisma dependency) so they're testable without a database, and so
+// apps/web calls `job.seoTitle ?? generateSeoTitle(job)` — manual
+// override always wins, this is only the fallback.
+
 export interface SeoJobFields {
   title: string;
   organizationName: string;

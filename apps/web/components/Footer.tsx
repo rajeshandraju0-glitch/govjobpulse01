@@ -1,3 +1,5 @@
+import { NewsletterSignupForm } from "./NewsletterSignupForm";
+
 export function Footer() {
   return (
     <footer className="mt-16 border-t border-secondary/10 bg-secondary/[0.02] py-10">
@@ -9,6 +11,14 @@ export function Footer() {
           organised listings. Every listing links back to the official notification — always
           confirm details there before applying.
         </p>
+
+        <div className="mt-6 max-w-sm">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-secondary/50">
+            Get new notifications by email
+          </p>
+          <NewsletterSignupForm />
+        </div>
+
         <p className="mt-6">© {new Date().getFullYear()} GovJobPulse. All states covered.</p>
         <p className="mt-2 flex gap-4 text-xs">
           <a href="/sitemap-html" className="hover:text-primary">
