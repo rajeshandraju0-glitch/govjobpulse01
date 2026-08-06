@@ -22,6 +22,7 @@ import { eventBus } from "@govjobpulse/shared";
 import { runScraperModule } from "./run-scraper";
 import { subscribeJobPublishedToNotifications } from "./notifications/subscribe";
 import { startDigestSchedulers } from "./digests/scheduler";
+import { startHealthServer } from "./health-server";
 
 const CRON_EXPRESSION = "*/30 * * * *"; // every 30 minutes
 
@@ -72,6 +73,7 @@ export function startScheduler(): void {
     });
   });
   startDigestSchedulers();
+  startHealthServer();
 }
 
 if (require.main === module) {

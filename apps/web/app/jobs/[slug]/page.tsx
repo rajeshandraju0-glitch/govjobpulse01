@@ -6,6 +6,8 @@ import { JobCard } from "@/components/JobCard";
 import { JobPostingJsonLd } from "@/components/json-ld/JobPostingJsonLd";
 import { BreadcrumbJsonLd } from "@/components/json-ld/BreadcrumbJsonLd";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
+import { trackJobView } from "@/lib/analytics";
+import { headers } from "next/headers";
 import { generateSeoTitle, generateSeoDescription } from "@govjobpulse/shared";
 import { absoluteUrl } from "@/lib/site";
 
@@ -48,6 +50,17 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
   const { slug } = await params;
   const job = await getJobBySlug(slug);
   if (!job || job.status !== "PUBLISHED") notFound();
+
+  // Section 9: view tracking. Deliberately NOT awaited — a tracking
+  // write is not something a real visitor should ever wait on, and a
+  // tracking-table failure (e.g. a transient DB blip) must never turn
+  // into a broken job page. .catch() here (not try/catch around an
+  // await) is what makes this genuinely fire-and-forget rather than
+  // just unhandled-promise-rejection-waiting-to-happen.
+  const referrer = (await headers()).get("referer");
+  trackJobView(job.id, referrer).catch((err) =>
+    console.error(`[analytics] Failed to track view for ${job.slug}:`, err)
+  );
 
   const [related, adjacent] = await Promise.all([
     getRelatedJobs(job.categoryId, job.id),
@@ -173,7 +186,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
       </div>
 
       <div className="mt-6">
-        <SocialShareButtons url={absoluteUrl(`/jobs/${job.slug}`)} title={job.title} />
+        <SocialShareButtons jobId={job.id} url={absoluteUrl(`/jobs/${job.slug}`)} title={job.title} />
       </div>
 
       {(adjacent.previous || adjacent.next) && (

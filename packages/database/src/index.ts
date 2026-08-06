@@ -20,4 +20,17 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
+// Section 9: "/health, /ready, /live endpoints." Shared here since
+// every app (web, admin) needs the same "can I reach Postgres"
+// check for its /ready and /health endpoints — one implementation,
+// not copy-pasted per app.
+export async function checkDatabaseHealth(): Promise<{ healthy: boolean; detail: string }> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return { healthy: true, detail: "Database reachable." };
+  } catch (err) {
+    return { healthy: false, detail: `Database unreachable: ${(err as Error).message}` };
+  }
+}
+
 export * from "@prisma/client";

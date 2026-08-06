@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/moderation">Moderation</Link>
               <Link href="/sources">Sources</Link>
               <Link href="/integrations">Social Integrations</Link>
+              <Link href="/analytics">Analytics</Link>
             </nav>
           </header>
           <main className="shell-main">{children}</main>

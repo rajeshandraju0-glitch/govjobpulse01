@@ -166,6 +166,8 @@ model Job {
 
   bookmarks Bookmark[]
   notifications Notification[]
+  views JobView[]
+  shareEvents ShareEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -468,4 +470,59 @@ model PushSubscription {
   lastSeenAt DateTime @default(now())
 
   @@index([active])
+}
+
+// ---------------------------------------------------------------------------
+// Analytics foundations (Section 9) — "Track (no external analytics
+// integration yet): most viewed jobs, most searched keywords, most
+// shared/bookmarked jobs, traffic source, top categories, top states."
+// First-party event tables, not a third-party analytics SDK — Section 9
+// is explicit no external integration exists yet. Every count derived
+// from these is real (Section 1 rule 2): nothing here is a fabricated
+// "trending" number, it's aggregated from rows that only exist because
+// a real page view/search/share actually happened.
+// ---------------------------------------------------------------------------
+
+model JobView {
+  id    String @id @default(cuid())
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId String
+
+  // "Traffic source" per Section 9 — the raw referrer header, not a
+  // parsed/categorized source, since parsing referrers into named
+  // categories (search/social/direct/...) is a real feature that
+  // deserves its own design pass, not a guess bolted on here.
+  referrer String?
+
+  viewedAt DateTime @default(now())
+
+  @@index([jobId, viewedAt])
+}
+
+model SearchQuery {
+  id           String @id @default(cuid())
+  query        String
+  resultsCount Int
+  searchedAt   DateTime @default(now())
+
+  @@index([searchedAt])
+}
+
+enum ShareChannel {
+  FACEBOOK
+  LINKEDIN
+  TWITTER
+  TELEGRAM
+  WHATSAPP
+  COPY_LINK
+}
+
+model ShareEvent {
+  id      String       @id @default(cuid())
+  job     Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId   String
+  channel ShareChannel
+  sharedAt DateTime    @default(now())
+
+  @@index([jobId, sharedAt])
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { searchJobs } from "@/lib/jobs";
+import { trackSearchQuery } from "@/lib/analytics";
 import { resolvePagination } from "@/lib/pagination";
 import { JobCard } from "@/components/JobCard";
 import { Pagination } from "@/components/Pagination";
@@ -32,6 +33,14 @@ export default async function SearchPage({
   const q = resolvedSearchParams.q?.trim() ?? "";
   const { page, take, skip } = resolvePagination(resolvedSearchParams);
   const { jobs, total } = q ? await searchJobs({ query: q, skip, take }) : { jobs: [], total: 0 };
+
+  // Section 9: search-keyword tracking. Only on page 1 — clicking
+  // "Next" on the same query shouldn't count as a second search for
+  // "most searched keywords" purposes. Fire-and-forget, same reasoning
+  // as job-view tracking (lib/analytics.ts).
+  if (q && page === 1) {
+    trackSearchQuery(q, total).catch((err) => console.error("[analytics] Failed to track search query:", err));
+  }
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-12">
