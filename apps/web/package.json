@@ -16,6 +16,7 @@
     "@govjobpulse/shared": "workspace:*",
     "@govjobpulse/config": "workspace:*",
     "@govjobpulse/database": "workspace:*",
+    "@govjobpulse/cache": "workspace:*",
     "next": "^15.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

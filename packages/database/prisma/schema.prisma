@@ -505,7 +505,13 @@ model SearchQuery {
   resultsCount Int
   searchedAt   DateTime @default(now())
 
-  @@index([searchedAt])
+  // Composite, not just @@index([searchedAt]) alone — Section 10:
+  // "query optimization." getMostSearchedKeywords (apps/web/lib/analytics.ts)
+  // filters on searchedAt AND groups by query in the same query; a
+  // composite index lets Postgres satisfy both the range filter and
+  // the grouping from one index scan instead of filtering via the
+  // index then sorting/hashing query values separately.
+  @@index([searchedAt, query])
 }
 
 enum ShareChannel {

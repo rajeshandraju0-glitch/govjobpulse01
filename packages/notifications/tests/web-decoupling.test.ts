@@ -25,6 +25,20 @@ import { join } from "node:path";
 // If this test ever needs to be updated to allow apps/web to depend on
 // notifications, that's a real architectural decision that deserves a
 // second look, not something that should happen silently.
+//
+// UPDATED IN PHASE 13: apps/web now depends on @govjobpulse/cache,
+// which uses ioredis internally for Section 10's Redis caching layer —
+// a deliberately distinct, orthogonal concern from the notification
+// queues this test guards against. The tests below still check that
+// apps/web has no DIRECT "ioredis" entry in its own package.json
+// (it doesn't — only "@govjobpulse/cache" is listed, ioredis is that
+// package's dependency, not web's), and more importantly,
+// @govjobpulse/cache is built to degrade gracefully: a cache-Redis
+// outage falls back to a direct DB read (see packages/cache's
+// getOrSetCache), never an error. So the property this test actually
+// protects — "the site works even if notifications/queues fail" — is
+// intact; it just no longer overlaps with "the site has zero Redis
+// usage of any kind," because caching legitimately needs some.
 
 function readPackageJson(relativePath: string): { dependencies?: Record<string, string> } {
   const fullPath = join(__dirname, "..", "..", "..", relativePath);

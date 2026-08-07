@@ -11,6 +11,7 @@
 import { prisma, JobStatus } from "@govjobpulse/database";
 import { eventBus } from "@govjobpulse/shared";
 import { QUEUE_NAMES, createQueue, createRedisConnection } from "@govjobpulse/notifications";
+import { createCacheClient, invalidateCache } from "@govjobpulse/cache";
 import { revalidatePath } from "next/cache";
 
 export async function markReviewed(jobId: string): Promise<void> {
@@ -66,6 +67,26 @@ export async function publishJob(jobId: string): Promise<void> {
     // failed-to-enqueue publish is a notifications problem to notice
     // and fix, not a reason to roll back a legitimate publish.
     console.error(`[moderation] Failed to enqueue notification for published job ${job.slug}:`, err);
+  }
+
+  // Section 10/13: apps/web's home page caches its published-jobs list
+  // for 60s (see apps/web/lib/cache.ts + app/page.tsx). Without this,
+  // a job published right now could sit invisible on the home page for
+  // up to a minute — invalidate explicitly rather than make an editor
+  // wait out the TTL. Same "must not break the publish" principle as
+  // the notification enqueue above: cache invalidation failing is
+  // logged, never allowed to fail the publish itself.
+  try {
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      const cacheClient = createCacheClient(redisUrl);
+      await invalidateCache(cacheClient, "home:total-published");
+      await invalidateCache(cacheClient, "home:popular-categories");
+      await invalidateCache(cacheClient, "home:jobs:page:1");
+      await cacheClient.quit();
+    }
+  } catch (err) {
+    console.error(`[moderation] Failed to invalidate home page cache after publishing ${job.slug}:`, err);
   }
 
   revalidatePath("/moderation");

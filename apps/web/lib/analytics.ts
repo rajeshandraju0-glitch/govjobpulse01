@@ -14,6 +14,7 @@
 // NOT RUN in this sandbox — see CLAUDE.md's Prisma/network limitation.
 
 import { prisma } from "@govjobpulse/database";
+import { clampPageSize } from "./pagination";
 
 export async function trackJobView(jobId: string, referrer: string | null): Promise<void> {
   // Fire-and-forget from the caller's perspective (see app/jobs/[slug]/page.tsx)
@@ -45,7 +46,7 @@ export async function getMostViewedJobs(sinceDays = 30, limit = 10) {
     where: { viewedAt: { gte: since } },
     _count: { jobId: true },
     orderBy: { _count: { jobId: "desc" } },
-    take: limit,
+    take: clampPageSize(limit),
   });
 
   const jobs = await prisma.job.findMany({
@@ -66,7 +67,7 @@ export async function getMostSearchedKeywords(sinceDays = 30, limit = 10) {
     where: { searchedAt: { gte: since } },
     _count: { query: true },
     orderBy: { _count: { query: "desc" } },
-    take: limit,
+    take: clampPageSize(limit),
   });
 }
 
@@ -77,7 +78,7 @@ export async function getMostSharedJobs(sinceDays = 30, limit = 10) {
     where: { sharedAt: { gte: since } },
     _count: { jobId: true },
     orderBy: { _count: { jobId: "desc" } },
-    take: limit,
+    take: clampPageSize(limit),
   });
 
   const jobs = await prisma.job.findMany({
@@ -95,37 +96,44 @@ export async function getMostSharedJobs(sinceDays = 30, limit = 10) {
 // (JobView joined through Job), which is a more accurate "top" than
 // Phase 7's getPopularCategories() (raw published-job counts, kept as
 // a simpler fallback for pages that don't need view-weighted ranking).
+//
+// FIXED IN PHASE 13 (a real bug from Phase 12, not a new discovery):
+// the original version pulled every JobView row in the window into
+// memory via a plain findMany() with no `take`, then aggregated in JS
+// — a genuinely unbounded query, in direct violation of Section 10's
+// own rule this phase exists to enforce. Rewritten as raw SQL doing
+// the JOIN + GROUP BY + LIMIT at the database level: one round trip,
+// bounded by LIMIT, no per-row data pulled into the Node process at
+// all. This is real query optimization, not just a cap slapped onto
+// the same inefficient pattern.
 export async function getTopCategoriesByViews(sinceDays = 30, limit = 10) {
   const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-  const views = await prisma.jobView.findMany({
-    where: { viewedAt: { gte: since } },
-    select: { job: { select: { category: { select: { id: true, name: true, slug: true } } } } },
-  });
+  const boundedLimit = clampPageSize(limit);
 
-  const counts = new Map<string, { name: string; slug: string; count: number }>();
-  for (const v of views) {
-    const cat = v.job.category;
-    const existing = counts.get(cat.id);
-    counts.set(cat.id, { name: cat.name, slug: cat.slug, count: (existing?.count ?? 0) + 1 });
-  }
-
-  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, limit);
+  return prisma.$queryRaw<{ id: string; name: string; slug: string; count: bigint }[]>`
+    SELECT c.id, c.name, c.slug, COUNT(*) as count
+    FROM "JobView" jv
+    JOIN "Job" j ON j."id" = jv."jobId"
+    JOIN "Category" c ON c."id" = j."categoryId"
+    WHERE jv."viewedAt" >= ${since}
+    GROUP BY c.id, c.name, c.slug
+    ORDER BY count DESC
+    LIMIT ${boundedLimit}
+  `.then((rows) => rows.map((r) => ({ ...r, count: Number(r.count) })));
 }
 
 export async function getTopStatesByViews(sinceDays = 30, limit = 10) {
   const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-  const views = await prisma.jobView.findMany({
-    where: { viewedAt: { gte: since } },
-    select: { job: { select: { states: { select: { state: { select: { id: true, name: true, slug: true } } } } } } },
-  });
+  const boundedLimit = clampPageSize(limit);
 
-  const counts = new Map<string, { name: string; slug: string; count: number }>();
-  for (const v of views) {
-    for (const js of v.job.states) {
-      const existing = counts.get(js.state.id);
-      counts.set(js.state.id, { name: js.state.name, slug: js.state.slug, count: (existing?.count ?? 0) + 1 });
-    }
-  }
-
-  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, limit);
+  return prisma.$queryRaw<{ id: string; name: string; slug: string; count: bigint }[]>`
+    SELECT s.id, s.name, s.slug, COUNT(*) as count
+    FROM "JobView" jv
+    JOIN "JobState" js ON js."jobId" = jv."jobId"
+    JOIN "State" s ON s."id" = js."stateId"
+    WHERE jv."viewedAt" >= ${since}
+    GROUP BY s.id, s.name, s.slug
+    ORDER BY count DESC
+    LIMIT ${boundedLimit}
+  `.then((rows) => rows.map((r) => ({ ...r, count: Number(r.count) })));
 }

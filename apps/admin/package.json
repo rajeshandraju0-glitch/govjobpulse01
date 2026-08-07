@@ -16,6 +16,7 @@
     "@govjobpulse/shared": "workspace:*",
     "@govjobpulse/config": "workspace:*",
     "@govjobpulse/database": "workspace:*",
+    "@govjobpulse/cache": "workspace:*",
     "@govjobpulse/scraper-core": "workspace:*",
     "@govjobpulse/notifications": "workspace:*",
     "bullmq": "^5.21.2",

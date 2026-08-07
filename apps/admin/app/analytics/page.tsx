@@ -14,6 +14,15 @@ export const dynamic = "force-dynamic";
 
 const SINCE_DAYS = 30;
 
+// Section 10: "never unbounded queries... add a hard max page size."
+// Local, tiny clamp rather than importing apps/web's lib/pagination —
+// consistent with this file's already-documented duplication tradeoff
+// above, and not worth a cross-app import for two lines.
+const MAX_LIMIT = 50;
+function clamp(limit: number): number {
+  return Math.max(1, Math.min(limit, MAX_LIMIT));
+}
+
 async function getMostViewedJobs(limit = 10) {
   const since = new Date(Date.now() - SINCE_DAYS * 24 * 60 * 60 * 1000);
   const grouped = await prisma.jobView.groupBy({
@@ -21,7 +30,7 @@ async function getMostViewedJobs(limit = 10) {
     where: { viewedAt: { gte: since } },
     _count: { jobId: true },
     orderBy: { _count: { jobId: "desc" } },
-    take: limit,
+    take: clamp(limit),
   });
   const jobs = await prisma.job.findMany({
     where: { id: { in: grouped.map((g) => g.jobId) } },
@@ -40,7 +49,7 @@ async function getMostSharedJobs(limit = 10) {
     where: { sharedAt: { gte: since } },
     _count: { jobId: true },
     orderBy: { _count: { jobId: "desc" } },
-    take: limit,
+    take: clamp(limit),
   });
   const jobs = await prisma.job.findMany({
     where: { id: { in: grouped.map((g) => g.jobId) } },
@@ -59,7 +68,7 @@ async function getMostSearchedKeywords(limit = 10) {
     where: { searchedAt: { gte: since } },
     _count: { query: true },
     orderBy: { _count: { query: "desc" } },
-    take: limit,
+    take: clamp(limit),
   });
 }
 

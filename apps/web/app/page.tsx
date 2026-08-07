@@ -4,10 +4,20 @@ import { JobCard } from "@/components/JobCard";
 import { Pagination } from "@/components/Pagination";
 import { getPublishedJobs, getPopularCategories } from "@/lib/jobs";
 import { resolvePagination } from "@/lib/pagination";
+import { withCache } from "@/lib/cache";
 import { FaqSection } from "@/components/json-ld/FaqSection";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic"; // TODO(Phase 7 follow-up): revisit ISR/SSG caching strategy now that SEO infra exists
+
+// Section 10: "Redis caching." 60s TTL — short enough that a newly
+// published job shows up on the home page within a minute (this is a
+// job board, not a news wire; sub-minute freshness isn't the product
+// promise anywhere else on the site either), long enough to absorb
+// real traffic spikes without hammering Postgres on every request.
+// withCache() silently no-ops to a direct DB read if REDIS_URL isn't
+// set, so this degrades gracefully rather than being a hard dependency.
+const HOME_CACHE_TTL_SECONDS = 60;
 
 export default async function HomePage({
   searchParams,
@@ -16,10 +26,15 @@ export default async function HomePage({
 }) {
   const resolvedSearchParams = await searchParams;
   const { page, take, skip } = resolvePagination(resolvedSearchParams);
+
   const [{ jobs, total }, totalPublishedJobs, popularCategories] = await Promise.all([
-    getPublishedJobs({ skip, take }),
-    prisma.job.count({ where: { status: JobStatus.PUBLISHED } }),
-    getPopularCategories(),
+    withCache(`home:jobs:page:${page}`, { ttlSeconds: HOME_CACHE_TTL_SECONDS }, () =>
+      getPublishedJobs({ skip, take })
+    ),
+    withCache(`home:total-published`, { ttlSeconds: HOME_CACHE_TTL_SECONDS }, () =>
+      prisma.job.count({ where: { status: JobStatus.PUBLISHED } })
+    ),
+    withCache(`home:popular-categories`, { ttlSeconds: HOME_CACHE_TTL_SECONDS }, () => getPopularCategories()),
   ]);
 
   return (
