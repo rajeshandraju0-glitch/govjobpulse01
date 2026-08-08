@@ -1,4 +1,4 @@
-import { absoluteUrl } from "@/lib/site";
+import { absoluteUrl, safeJsonLdStringify } from "@/lib/site";
 
 // Section 6: "JSON-LD: JobPosting schema..." Only real, known fields are
 // populated — per Section 1 rule 2 (never fabricate data), fields the
@@ -88,7 +88,7 @@ export function JobPostingJsonLd({ job }: JobPostingJsonLdProps) {
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
     />
   );
 }

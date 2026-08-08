@@ -9,3 +9,21 @@ export const SITE_NAME = "GovJobPulse";
 export function absoluteUrl(path: string): string {
   return new URL(path, SITE_URL).toString();
 }
+
+// Section 10: XSS mitigation for JSON-LD <script> tags. JSON.stringify()
+// does NOT escape "</script>" or other HTML-significant sequences — a
+// string value containing e.g. "</script><script>evil()</script>"
+// would break out of the intended <script type="application/ld+json">
+// tag and execute as HTML/JS. This matters concretely here (not just
+// in theory) because JobPostingJsonLd renders scraped job titles and
+// descriptions — untrusted input from external government sites, not
+// content this codebase authored. Standard mitigation: escape the
+// characters that terminate/open HTML tags before they reach
+// dangerouslySetInnerHTML. Every JSON-LD component uses this instead
+// of raw JSON.stringify().
+export function safeJsonLdStringify(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}

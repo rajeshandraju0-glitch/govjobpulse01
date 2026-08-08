@@ -15,6 +15,7 @@
     "@govjobpulse/types": "workspace:*",
     "@govjobpulse/shared": "workspace:*",
     "@govjobpulse/config": "workspace:*",
+    "@govjobpulse/auth": "workspace:*",
     "@govjobpulse/database": "workspace:*",
     "@govjobpulse/cache": "workspace:*",
     "@govjobpulse/scraper-core": "workspace:*",

@@ -1,4 +1,4 @@
-import { absoluteUrl } from "@/lib/site";
+import { absoluteUrl, safeJsonLdStringify } from "@/lib/site";
 
 interface Crumb {
   name: string;
@@ -21,7 +21,7 @@ export function BreadcrumbJsonLd({ crumbs }: { crumbs: Crumb[] }) {
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
     />
   );
 }

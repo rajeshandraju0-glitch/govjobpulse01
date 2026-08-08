@@ -24,6 +24,16 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().startsWith("redis://", {
     message: "REDIS_URL must be a redis:// connection string",
   }).optional(),
+  // Section 14: signs/verifies apps/admin's session JWTs
+  // (packages/auth). Required, not optional — an admin deployment
+  // with no JWT_SECRET set would either crash (good, fail-fast) or
+  // worse, someone might hardcode a fallback (exactly what Section 1
+  // rule 7 forbids). Minimum length is a real, checked constraint, not
+  // just documentation — a short secret is meaningfully easier to
+  // brute-force.
+  JWT_SECRET: z.string().min(32, {
+    message: "JWT_SECRET must be at least 32 characters — generate one with `openssl rand -hex 32`",
+  }),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -11,28 +11,42 @@
 // the job-centric vs. recipient-centric interface mismatch).
 
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma, SubscriberStatus } from "@govjobpulse/database";
 import { generateSubscriptionToken, computeVerificationExpiry } from "@govjobpulse/shared";
+import { rateLimitRequest } from "@/lib/rate-limit";
 
-function isValidEmail(email: string): boolean {
-  // Deliberately simple — RFC 5322-complete validation is famously not
-  // worth it; this catches the obvious "not an email at all" case, and
-  // the verification-link step is the real correctness check anyway.
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+// Section 10: "Zod input validation." Real RFC 5322-complete email
+// validation is famously not worth it — z.string().email() catches the
+// obvious "not an email at all" case, and the verification-link step
+// is the real correctness check anyway.
+const subscribeSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  dailyDigest: z.boolean().optional(),
+  weeklyDigest: z.boolean().optional(),
+});
 
 export async function POST(request: Request): Promise<NextResponse> {
-  let body: { email?: string; dailyDigest?: boolean; weeklyDigest?: boolean };
+  // Section 10: "rate limiting." 5 subscribe attempts per IP per hour —
+  // generous enough for a real person re-trying a typo'd email, tight
+  // enough to blunt automated signup spam.
+  const rateLimit = await rateLimitRequest(request, "subscribe", 5, 60 * 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
+  let rawBody: unknown;
   try {
-    body = (await request.json()) as { email?: string; dailyDigest?: boolean; weeklyDigest?: boolean };
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const email = body.email?.trim().toLowerCase();
-  if (!email || !isValidEmail(email)) {
+  const parsed = subscribeSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json({ error: "A valid email address is required" }, { status: 400 });
   }
+  const { email, dailyDigest, weeklyDigest } = parsed.data;
 
   const existing = await prisma.newsletterSubscriber.findUnique({ where: { email } });
   if (existing) {
@@ -51,8 +65,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         status: SubscriberStatus.PENDING,
         verificationToken,
         verificationTokenExpiresAt: computeVerificationExpiry(),
-        dailyDigest: body.dailyDigest ?? existing.dailyDigest,
-        weeklyDigest: body.weeklyDigest ?? existing.weeklyDigest,
+        dailyDigest: dailyDigest ?? existing.dailyDigest,
+        weeklyDigest: weeklyDigest ?? existing.weeklyDigest,
       },
     });
     return NextResponse.json({ message: "Check your email to confirm your subscription." });
@@ -65,8 +79,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       verificationToken: generateSubscriptionToken(),
       verificationTokenExpiresAt: computeVerificationExpiry(),
       unsubscribeToken: generateSubscriptionToken(),
-      dailyDigest: body.dailyDigest ?? true,
-      weeklyDigest: body.weeklyDigest ?? false,
+      dailyDigest: dailyDigest ?? true,
+      weeklyDigest: weeklyDigest ?? false,
     },
   });
 

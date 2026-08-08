@@ -532,3 +532,24 @@ model ShareEvent {
 
   @@index([jobId, sharedAt])
 }
+
+// Section 10: "audit logs for admin actions." Deliberately NOT a
+// foreign key to User with onDelete cascade — an audit trail must
+// survive even if the acting user's account is later deleted; userId
+// is stored as a plain string (denormalized email alongside it) so the
+// log entry remains meaningful on its own.
+model AdminAuditLog {
+  id String @id @default(cuid())
+
+  userId    String
+  userEmail String
+  action    String // e.g. "job.publish", "job.mark_reviewed", "notification_provider.toggle"
+  targetType String? // e.g. "Job", "NotificationProviderConfig"
+  targetId   String?
+  detail     String? // short human-readable context, e.g. "Telegram enabled"
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}

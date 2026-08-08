@@ -2,7 +2,7 @@
 // tests (this sandbox has a real local Redis via apt; see CLAUDE.md).
 
 import { describe, it, expect, vi, afterAll, afterEach } from "vitest";
-import { createCacheClient, getOrSetCache, invalidateCache } from "../src/index";
+import { createCacheClient, getOrSetCache, invalidateCache, checkRateLimit } from "../src/index";
 
 const REDIS_URL = process.env.REDIS_URL_TEST ?? "redis://localhost:6379";
 const client = createCacheClient(REDIS_URL);
@@ -83,5 +83,50 @@ describe("invalidateCache — real Redis", () => {
     const result = await getOrSetCache(client, "test:invalidate", { ttlSeconds: 60 }, fetchFresh);
     expect(result).toBe("after-invalidation");
     expect(fetchFresh).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("checkRateLimit — real Redis", () => {
+  it("allows requests up to the limit", async () => {
+    const key = "test:ratelimit:a";
+    for (let i = 0; i < 3; i++) {
+      const result = await checkRateLimit(client, key, 3, 60);
+      expect(result.allowed).toBe(true);
+    }
+  });
+
+  it("blocks requests once the limit is exceeded within the window", async () => {
+    const key = "test:ratelimit:b";
+    await checkRateLimit(client, key, 2, 60);
+    await checkRateLimit(client, key, 2, 60);
+    const third = await checkRateLimit(client, key, 2, 60);
+    expect(third.allowed).toBe(false);
+    expect(third.remaining).toBe(0);
+  });
+
+  it("resets after the real window expires", async () => {
+    const key = "test:ratelimit:c";
+    await checkRateLimit(client, key, 1, 1); // limit of 1, 1-second window
+    const blocked = await checkRateLimit(client, key, 1, 1);
+    expect(blocked.allowed).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 1200)); // real wait for real expiry
+
+    const afterReset = await checkRateLimit(client, key, 1, 1);
+    expect(afterReset.allowed).toBe(true);
+  }, 5000);
+
+  it("tracks different keys independently", async () => {
+    const a = await checkRateLimit(client, "test:ratelimit:d1", 1, 60);
+    const b = await checkRateLimit(client, "test:ratelimit:d2", 1, 60);
+    expect(a.allowed).toBe(true);
+    expect(b.allowed).toBe(true);
+  });
+
+  it("fails open (allows the request) when Redis is unreachable", async () => {
+    const brokenClient = createCacheClient("redis://localhost:1");
+    const result = await checkRateLimit(brokenClient, "test:broken-ratelimit", 1, 60);
+    expect(result.allowed).toBe(true);
+    brokenClient.disconnect();
   });
 });

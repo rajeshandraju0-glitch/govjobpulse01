@@ -7,15 +7,33 @@
 // Credentials live exclusively in environment variables (Section 1
 // rule 7); this file never reads, stores, or displays one.
 
-import { prisma, NotificationPlatform } from "@govjobpulse/database";
+import { prisma, NotificationPlatform, logAdminAction } from "@govjobpulse/database";
 import { getProvider } from "@govjobpulse/notifications";
 import { revalidatePath } from "next/cache";
+import { getCurrentAdminUser } from "@/lib/current-user";
 
 export async function toggleProviderEnabled(platform: NotificationPlatform, enabled: boolean): Promise<void> {
   await prisma.notificationProviderConfig.update({
     where: { platform },
     data: { enabled },
   });
+
+  // Section 10: this specifically is the SUPER_ADMIN-only action that
+  // turns on live outbound posting to a real platform — arguably the
+  // single most consequential toggle in the whole admin panel, so it
+  // gets an unconditional audit log entry, not a best-effort one.
+  const user = await getCurrentAdminUser();
+  if (user) {
+    await logAdminAction({
+      userId: user.userId,
+      userEmail: user.email,
+      action: "notification_provider.toggle",
+      targetType: "NotificationProviderConfig",
+      targetId: platform,
+      detail: `${platform} ${enabled ? "enabled" : "disabled"}`,
+    });
+  }
+
   revalidatePath("/integrations");
 }
 

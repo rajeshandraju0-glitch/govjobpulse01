@@ -1,4 +1,4 @@
-import { SITE_URL, SITE_NAME } from "@/lib/site";
+import { SITE_URL, SITE_NAME, safeJsonLdStringify } from "@/lib/site";
 
 // Section 6: "JSON-LD: ... Organization schema ..." This describes
 // GovJobPulse itself (the publisher), not the government bodies whose
@@ -18,7 +18,7 @@ export function OrganizationJsonLd() {
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
     />
   );
 }

@@ -8,17 +8,31 @@
 // transition happens deliberately, through here, not implicitly
 // anywhere else.
 
-import { prisma, JobStatus } from "@govjobpulse/database";
+import { prisma, JobStatus, logAdminAction } from "@govjobpulse/database";
 import { eventBus } from "@govjobpulse/shared";
 import { QUEUE_NAMES, createQueue, createRedisConnection } from "@govjobpulse/notifications";
 import { createCacheClient, invalidateCache } from "@govjobpulse/cache";
 import { revalidatePath } from "next/cache";
+import { getCurrentAdminUser } from "@/lib/current-user";
 
 export async function markReviewed(jobId: string): Promise<void> {
-  await prisma.job.update({
+  const job = await prisma.job.update({
     where: { id: jobId },
     data: { status: JobStatus.REVIEWED },
   });
+
+  const user = await getCurrentAdminUser();
+  if (user) {
+    await logAdminAction({
+      userId: user.userId,
+      userEmail: user.email,
+      action: "job.mark_reviewed",
+      targetType: "Job",
+      targetId: job.id,
+      detail: job.title,
+    });
+  }
+
   revalidatePath("/moderation");
 }
 
@@ -87,6 +101,18 @@ export async function publishJob(jobId: string): Promise<void> {
     }
   } catch (err) {
     console.error(`[moderation] Failed to invalidate home page cache after publishing ${job.slug}:`, err);
+  }
+
+  const user = await getCurrentAdminUser();
+  if (user) {
+    await logAdminAction({
+      userId: user.userId,
+      userEmail: user.email,
+      action: "job.publish",
+      targetType: "Job",
+      targetId: job.id,
+      detail: job.title,
+    });
   }
 
   revalidatePath("/moderation");

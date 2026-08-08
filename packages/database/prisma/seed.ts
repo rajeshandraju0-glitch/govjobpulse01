@@ -134,6 +134,32 @@ async function main() {
     });
   }
   console.log(`Seeded ${PROVIDER_CONFIGS.length} notification provider configs (all disabled).`);
+
+  // Section 14: bootstrap the first admin account. Deliberately NOT a
+  // hardcoded default (Section 1 rule 7) — this only creates a user if
+  // BOTH env vars are set, and does nothing on repeat runs if that
+  // email already exists. Meant for first-deploy setup (or local dev),
+  // not something that runs unattended in a normal seed cycle.
+  const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
+  const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+
+  if (initialAdminEmail && initialAdminPassword) {
+    const existing = await prisma.user.findUnique({ where: { email: initialAdminEmail } });
+    if (existing) {
+      console.log(`Admin user ${initialAdminEmail} already exists — skipping.`);
+    } else {
+      const { hashPassword } = await import("@govjobpulse/auth");
+      const passwordHash = await hashPassword(initialAdminPassword);
+      await prisma.user.create({
+        data: { email: initialAdminEmail, passwordHash, role: "SUPER_ADMIN" },
+      });
+      console.log(`Created initial SUPER_ADMIN user: ${initialAdminEmail}`);
+    }
+  } else {
+    console.log(
+      "INITIAL_ADMIN_EMAIL/INITIAL_ADMIN_PASSWORD not set — skipping admin bootstrap. Set both to create the first admin account."
+    );
+  }
 }
 
 main()

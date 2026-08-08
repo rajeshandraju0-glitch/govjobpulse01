@@ -4,6 +4,8 @@
 // disabled placeholders per Section 7/8, so the FAQ doesn't claim
 // GovJobPulse will notify you).
 
+import { safeJsonLdStringify } from "@/lib/site";
+
 const FAQS = [
   {
     question: "What is Sarkari Naukri?",
@@ -62,7 +64,7 @@ function FaqJsonLd() {
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
     />
   );
 }

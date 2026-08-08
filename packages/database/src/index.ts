@@ -33,4 +33,25 @@ export async function checkDatabaseHealth(): Promise<{ healthy: boolean; detail:
   }
 }
 
+// Section 10: "audit logs for admin actions." One helper so every
+// admin Server Action logs consistently rather than each one building
+// its own prisma.adminAuditLog.create() call. Never throws — an audit
+// log failing to write must not block the actual admin action it's
+// trying to record (same "must keep working" principle applied
+// elsewhere in this codebase to notifications/caching).
+export async function logAdminAction(params: {
+  userId: string;
+  userEmail: string;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  detail?: string;
+}): Promise<void> {
+  try {
+    await prisma.adminAuditLog.create({ data: params });
+  } catch (err) {
+    console.error("[audit-log] Failed to write admin audit log entry:", err);
+  }
+}
+
 export * from "@prisma/client";

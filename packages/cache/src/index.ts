@@ -69,3 +69,40 @@ export async function invalidateCache(client: IORedis, key: string): Promise<voi
     console.error(`[cache] Redis DEL failed for key "${key}":`, err);
   }
 }
+
+// Section 10: "rate limiting." Fixed-window counter — simpler than a
+// sliding window, and precise-enough for the actual threat model here
+// (spam/abuse of public POST endpoints like /api/subscribe, not a
+// system with strict per-second SLA needs). Reuses the same Redis
+// connection pattern as caching above.
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+}
+
+export async function checkRateLimit(
+  client: IORedis,
+  key: string,
+  limit: number,
+  windowSeconds: number
+): Promise<RateLimitResult> {
+  try {
+    const current = await client.incr(key);
+    if (current === 1) {
+      // First request in this window — set the expiry now, so the
+      // counter resets after windowSeconds regardless of how many
+      // requests follow.
+      await client.expire(key, windowSeconds);
+    }
+    return { allowed: current <= limit, remaining: Math.max(0, limit - current), limit };
+  } catch (err) {
+    // Same "must keep working" principle as caching: if Redis itself
+    // is unreachable, fail OPEN (allow the request) rather than block
+    // all traffic because a rate limiter's backing store is down. A
+    // rate limiter that's temporarily not enforcing limits is a much
+    // smaller problem than an outage taking down every public endpoint.
+    console.error(`[rate-limit] Redis check failed for key "${key}", failing open:`, err);
+    return { allowed: true, remaining: limit, limit };
+  }
+}
