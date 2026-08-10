@@ -1,24 +1,44 @@
 # NOT RUN in this sandbox — no `docker` binary is available here (see
-# CLAUDE.md). Written correctly and reviewed manually; `docker compose up`
-# actually working end-to-end is explicitly Phase 15's job per Section 11
-# ("Confirm docker compose up actually works end-to-end before closing
-# this phase"). This phase's job (Section 9) was narrower: get the
-# /health /ready /live endpoints wired into a real compose file's
-# healthcheck directives, which this does.
+# CLAUDE.md, confirmed again in Phase 15 via `which docker`). Written
+# correctly and reviewed manually against real Dokploy documentation
+# (researched in Phase 15, not assumed) — see the Dokploy-specific
+# notes below. Section 11's "confirm docker compose up actually works
+# end-to-end" could not be completed in this sandbox; that's the real,
+# honest limit here, not a formality — see CLAUDE.md's Phase 15 entry
+# for what WAS verified (YAML validity, env var completeness, Dockerfile
+# review) and what remains a real gap for whoever runs this outside
+# this sandbox.
+#
+# DOKPLOY NOTES (researched, not assumed):
+# - No `container_name` is set on any service below — Dokploy's own
+#   docs warn this breaks its logs/metrics/other features.
+# - Environment values use ${VAR:-default} interpolation (Docker
+#   Compose's native .env-file support) rather than hardcoded values,
+#   so the same file works for local `docker compose up` (via a real
+#   .env) AND lets Dokploy's own environment-variables UI override the
+#   same var names at deploy time, per Dokploy's documented pattern.
+# - Domain routing via Dokploy's Traefik integration needs each
+#   public-facing service attached to an external `dokploy-network`
+#   plus Traefik labels — deliberately NOT added by default here,
+#   since that network only exists once Dokploy creates it, and adding
+#   it unconditionally would break plain local `docker compose up`
+#   (the network wouldn't exist yet). Add it when actually deploying to
+#   Dokploy — see the commented block on the `web` service below as a
+#   starting point.
 
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: govjobpulse
-      POSTGRES_PASSWORD: govjobpulse
-      POSTGRES_DB: govjobpulse
+      POSTGRES_USER: ${POSTGRES_USER:-govjobpulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-govjobpulse}
+      POSTGRES_DB: ${POSTGRES_DB:-govjobpulse}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U govjobpulse"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-govjobpulse}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,8 +60,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://govjobpulse:govjobpulse@postgres:5432/govjobpulse
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-govjobpulse}:${POSTGRES_PASSWORD:-govjobpulse}@postgres:5432/${POSTGRES_DB:-govjobpulse}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -52,6 +72,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    # For Dokploy domain routing, add (after Dokploy has created the
+    # network — see the note above):
+    # networks:
+    #   - dokploy-network
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.govjobpulse-web.rule=Host(`yourdomain.com`)"
 
   admin:
     build:
@@ -60,8 +87,9 @@ services:
     ports:
       - "3001:3001"
     environment:
-      DATABASE_URL: postgresql://govjobpulse:govjobpulse@postgres:5432/govjobpulse
+      DATABASE_URL: postgresql://${POSTGRES_USER:-govjobpulse}:${POSTGRES_PASSWORD:-govjobpulse}@postgres:5432/${POSTGRES_DB:-govjobpulse}
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set — generate one with 'openssl rand -hex 32'}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -82,7 +110,7 @@ services:
     ports:
       - "3002:3002"
     environment:
-      DATABASE_URL: postgresql://govjobpulse:govjobpulse@postgres:5432/govjobpulse
+      DATABASE_URL: postgresql://${POSTGRES_USER:-govjobpulse}:${POSTGRES_PASSWORD:-govjobpulse}@postgres:5432/${POSTGRES_DB:-govjobpulse}
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
     depends_on:
