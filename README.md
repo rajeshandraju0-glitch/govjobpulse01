@@ -99,9 +99,12 @@ phase by phase.
 
 ## Status
 
-Phases 1 through 14 (plus an inserted Phase 9.5 — see `CLAUDE.md`'s Open
-Items for why) are complete. Phase 15 (this document, developer experience +
-deployment verification) is in progress. Phase 16 (future integration
-interface stubs) has not started. See `CLAUDE.md` → "Phase log" for the full,
+All 16 backlog phases (plus an inserted Phase 9.5 — see `CLAUDE.md`'s Open
+Items for why) are complete. See `CLAUDE.md` → "Phase log" for the full,
 detailed history of what was built, what was verified, and what remains a
-known, documented gap.
+known, documented gap — most notably: `loadEnv()`'s fail-fast validation is
+never actually called at any app's startup, public user registration/
+bookmarking was never built (only ADMIN/SUPER_ADMIN auth exists), a strict
+CSP was deliberately deferred, and `docker compose up` has never actually
+been run (no `docker` binary in the sandbox this was built in). None of these
+are hidden — they're prominent, dated entries in `CLAUDE.md`'s Open Items.

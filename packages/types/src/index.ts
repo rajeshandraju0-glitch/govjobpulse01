@@ -145,5 +145,11 @@ export function qualificationSlugToEnum(slug: string): string | undefined {
   return Object.entries(QUALIFICATION_SLUGS).find(([, s]) => s === slug)?.[0];
 }
 
+// Section 12: interface-only stubs (AI summaries, resume builder, exam
+// prep, public API, browser extension, mobile apps) — see
+// future-integrations.ts for the full definitions and per-item reasoning.
+export * from "./future-integrations";
+
+
 
 
