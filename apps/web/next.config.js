@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   // Section 10: "secure headers" — the Next.js equivalent of Helmet
   // (an Express middleware; this repo has no Express app per the
   // apps/api decision documented in CLAUDE.md's Phase 10 entry, so

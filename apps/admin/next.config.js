@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   // Internal ops tool, not part of the public site — never indexed.
   // Section 10 "secure headers" applies here too, arguably more so —
   // this app now holds real session cookies (Phase 14's JWT auth).
