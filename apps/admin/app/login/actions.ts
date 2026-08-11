@@ -10,8 +10,7 @@ import { prisma, UserRole } from "@govjobpulse/database";
 import { verifyPassword, signAdminJwt } from "@govjobpulse/auth";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-
-export const SESSION_COOKIE_NAME = "govjobpulse_admin_session";
+import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
 export async function login(formData: FormData): Promise<{ error: string } | never> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();

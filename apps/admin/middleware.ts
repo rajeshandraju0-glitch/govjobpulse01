@@ -8,7 +8,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyAdminJwt } from "@govjobpulse/auth";
-import { SESSION_COOKIE_NAME } from "./app/login/actions";
+import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
 // Section 2's RBAC matrix (resolved in Phase 2, enforced for the first
 // time here): SUPER_ADMIN adds "notification provider credentials" —
