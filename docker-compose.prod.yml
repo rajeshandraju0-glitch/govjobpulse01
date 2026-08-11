@@ -1,0 +1,122 @@
+# docker-compose.prod.yml
+# Production deployment for GovJobPulse — Ubuntu 1 vCPU / 6 GB
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+#
+# Images are pulled from GHCR (built by GitHub Actions), not built on the server.
+# Set REGISTRY and IMAGE_TAG in your .env file.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # NOT exposed to host — internal Docker network only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    # NOT exposed to host — internal Docker network only
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  web:
+    image: ${REGISTRY:-ghcr.io/YOUR_ORG}/govjobpulse-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"   # bound to localhost — Nginx proxies externally
+    environment:
+      DATABASE_URL:         postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+      REDIS_URL:            redis://redis:6379
+      NODE_ENV:             production
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  admin:
+    image: ${REGISTRY:-ghcr.io/YOUR_ORG}/govjobpulse-admin:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"   # bound to localhost — Nginx proxies externally
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL:    redis://redis:6379
+      JWT_SECRET:   ${JWT_SECRET}
+      NODE_ENV:     production
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  worker:
+    image: ${REGISTRY:-ghcr.io/YOUR_ORG}/govjobpulse-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3002:3002"   # health check port — not publicly routed
+    environment:
+      DATABASE_URL:       postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL:          redis://redis:6379
+      WORKER_HEALTH_PORT: 3002
+      NODE_ENV:           production
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  postgres_data:
+  redis_data:
