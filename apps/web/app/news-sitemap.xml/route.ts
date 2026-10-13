@@ -1,6 +1,8 @@
 import { prisma, JobStatus } from "@govjobpulse/database";
 import { SITE_URL, SITE_NAME } from "@/lib/site";
 
+export const dynamic = "force-dynamic"; // DB query — render at request time, not build time
+
 // Section 6: "news sitemap." Distinct from the regular sitemap.xml —
 // Google News Sitemap format only wants recently-published items (the
 // spec's own convention is roughly the last 48 hours; older items

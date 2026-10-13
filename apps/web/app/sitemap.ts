@@ -3,6 +3,8 @@ import { prisma, JobStatus } from "@govjobpulse/database";
 import { SITE_URL } from "@/lib/site";
 import { QUALIFICATION_SLUGS } from "@govjobpulse/types";
 
+export const dynamic = "force-dynamic"; // DB query — render at request time, not build time
+
 // Section 6: "sitemap.xml ... auto-updates on every publish." This is a
 // dynamic Next.js route (app/sitemap.ts), not a static file — it queries
 // the database on every request/rebuild, so a newly published job is in

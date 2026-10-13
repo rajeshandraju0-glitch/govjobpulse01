@@ -1,6 +1,8 @@
 import { prisma, JobStatus } from "@govjobpulse/database";
 import { SITE_URL, SITE_NAME } from "@/lib/site";
 
+export const dynamic = "force-dynamic"; // DB query — render at request time, not build time
+
 // Section 6: "RSS feed." Standard RSS 2.0, latest published jobs —
 // bounded to a reasonable recent window (Section 10: no unbounded
 // queries) rather than every job ever published.
