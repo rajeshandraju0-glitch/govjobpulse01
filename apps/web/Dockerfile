@@ -1,7 +1,8 @@
-# ─── Stage 1: deps ─────────────────────────────────────────────────────────
+# ─── Stage 1: deps ──────────────────────────────────────────────────────────
 FROM node:20-slim AS deps
 WORKDIR /repo
 
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm@9
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
@@ -20,26 +21,30 @@ COPY packages/auth/package.json         packages/auth/package.json
 
 RUN pnpm install --frozen-lockfile
 
-# ─── Stage 2: builder ──────────────────────────────────────────────────────
+# ─── Stage 2: builder ───────────────────────────────────────────────────────
 FROM deps AS builder
 COPY . .
 RUN pnpm --filter @govjobpulse/database db:generate
+# Skip DB calls during static build — sitemap/pages that hit Prisma
+# at build time will be generated at request time instead.
+ENV NEXT_PUBLIC_SKIP_DB_AT_BUILD=true
 RUN pnpm --filter @govjobpulse/web build
 
-# ─── Stage 3: runner ───────────────────────────────────────────────────────
+# ─── Stage 3: runner ────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
 WORKDIR /app
 
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 
-# Non-root user
 RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 nextjs
+ && adduser  --system --uid 1001 nextjs
 
-# Copy only the built output + runtime deps
-COPY --from=builder /repo/apps/web/.next/standalone ./
-COPY --from=builder /repo/apps/web/.next/static     ./.next/static
-COPY --from=builder /repo/apps/web/public           ./public
+# standalone output path in a pnpm monorepo is nested under apps/web
+COPY --from=builder /repo/apps/web/.next/standalone/apps/web/ ./
+COPY --from=builder /repo/apps/web/.next/standalone/node_modules ./node_modules
+COPY --from=builder /repo/apps/web/.next/static  ./.next/static
+COPY --from=builder /repo/apps/web/public        ./public
 
 USER nextjs
 EXPOSE 3000
