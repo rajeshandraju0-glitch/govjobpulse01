@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { buildShareLinks } from "@govjobpulse/shared";
+import { buildShareLinks } from "@govjobpulse/shared/client";
 
 interface SocialShareButtonsProps {
   jobId: string;
