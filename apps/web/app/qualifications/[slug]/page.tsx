@@ -8,6 +8,8 @@ import { qualificationSlugToEnum, QUALIFICATION_LABELS } from "@govjobpulse/type
 import { BreadcrumbJsonLd } from "@/components/json-ld/BreadcrumbJsonLd";
 import { absoluteUrl } from "@/lib/site";
 
+export const dynamic = "force-dynamic"; // DB query — render at request time, not build time
+
 export async function generateMetadata({
   params,
 }: {
