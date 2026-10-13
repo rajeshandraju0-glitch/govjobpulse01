@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getAllCategories, getAllStates } from "@/lib/jobs";
 import { QUALIFICATION_SLUGS, QUALIFICATION_LABELS } from "@govjobpulse/types";
 
+export const dynamic = "force-dynamic"; // DB query — render at request time, not build time
+
 export const metadata: Metadata = {
   title: "Sitemap",
   description: "All categories, states, and qualification pages on GovJobPulse.",
