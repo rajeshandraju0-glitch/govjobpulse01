@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jwt": "./src/jwt.ts",
+    "./password": "./src/password.ts"
+  },
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --noEmit",

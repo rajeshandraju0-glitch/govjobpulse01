@@ -7,7 +7,7 @@
 // or Server Action ever runs.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyAdminJwt } from "@govjobpulse/auth";
+import { verifyAdminJwt } from "@govjobpulse/auth/jwt";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
 // Section 2's RBAC matrix (resolved in Phase 2, enforced for the first
